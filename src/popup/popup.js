@@ -32,8 +32,8 @@ async function checkCurrentPage() {
 async function checkTranslator() {
   const status = document.querySelector("#translator");
   const chromeVersion = navigator.userAgent.match(/Chrome\/(\d+)/)?.[1] ?? "未知";
-  if (!("Translator" in self)) {
-    status.textContent = `Chrome ${chromeVersion}：不支持内置 Translator API（需要 138+）。`;
+  if (!("LanguageDetector" in self) || !("Translator" in self)) {
+    status.textContent = `Chrome ${chromeVersion}：不支持内置语言识别或翻译 API（需要 138+）。`;
     status.className = "connection error";
     return;
   }
@@ -44,10 +44,10 @@ async function checkTranslator() {
       targetLanguage: "zh"
     });
     const labels = {
-      available: "英中语言包可用",
-      downloadable: "英中语言包需要首次下载",
-      downloading: "英中语言包正在下载",
-      unavailable: "英中语言包不可用"
+      available: "语言识别可用；英中语言包可用",
+      downloadable: "语言识别可用；英中语言包需要首次下载",
+      downloading: "语言识别可用；英中语言包正在下载",
+      unavailable: "语言识别可用；英中语言包不可用"
     };
     status.textContent = `Chrome ${chromeVersion}：${labels[availability] ?? availability}`;
     status.className = availability === "unavailable" ? "connection error" : "connection ok";
