@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "English Reader",
+  "version": "0.3.1",
+  "description": "Learn vocabulary and difficult sentences while reading English webpages.",
+  "permissions": ["storage", "sidePanel", "contextMenus", "activeTab"],
+  "host_permissions": [],
+  "background": {
+    "service_worker": "src/background/background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "English Reader",
+    "default_popup": "src/popup/popup.html"
+  },
+  "side_panel": {
+    "default_path": "src/sidepanel/sidepanel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["src/content/content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "default-src 'self'; img-src 'self' data:; style-src 'self'; connect-src 'self'"
+  }
+}

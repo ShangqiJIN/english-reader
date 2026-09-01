@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>English Reader 学习库</title>
+    <link rel="stylesheet" href="sidepanel.css">
+  </head>
+  <body>
+    <header>
+      <p class="eyebrow">ENGLISH READER</p>
+      <h1>阅读学习库</h1>
+      <p id="summary" class="summary">正在读取…</p>
+    </header>
+    <nav aria-label="学习库分类">
+      <button class="active" data-tab="vocabulary">生词库</button>
+      <button data-tab="sentences">句子库</button>
+    </nav>
+    <div class="search">
+      <input id="search" type="search" placeholder="搜索学习库" autocomplete="off">
+    </div>
+    <div class="toolbar">
+      <button id="select-all">全选当前结果</button>
+      <button id="export-json">导出全部 JSON</button>
+      <button id="export-csv">导出当前 CSV</button>
+      <button id="delete-selected" class="danger" disabled>删除选中项</button>
+    </div>
+    <p id="notice" class="notice" role="status"></p>
+    <main id="list"></main>
+    <script type="module" src="sidepanel.js"></script>
+  </body>
+</html>

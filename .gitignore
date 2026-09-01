@@ -1,0 +1,8 @@
+.ds_store
+._*
+.cache/
+build/
+coverage/
+node_modules/
+tmp/
+.exfat-preflight.*/

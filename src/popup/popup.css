@@ -1,0 +1,9 @@
+body { width: 260px; margin: 0; padding: 18px; background: #fffdf7; color: #27241f; font: 14px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; }
+h1 { margin: 0 0 8px; color: #173f35; font: 700 22px/1.2 Georgia, serif; }
+h1 small { color: #716a5e; font: 500 11px/1.2 -apple-system, BlinkMacSystemFont, sans-serif; }
+p { margin: 8px 0 14px; }
+.connection { padding: 8px 10px; border-radius: 8px; background: #eee8da; font-size: 12px; }
+.connection.ok { background: #dcecdf; color: #285d3d; }
+.connection.error { background: #f3ded8; color: #8b362a; }
+button { width: 100%; border: 0; border-radius: 9px; padding: 10px; background: #173f35; color: white; cursor: pointer; }
+#status { margin-bottom: 0; color: #9b3b2f; font-size: 12px; }
