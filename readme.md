@@ -1,6 +1,6 @@
 # English Reader
 
-English Reader is a local-first Chrome Manifest V3 prototype for learning words and difficult sentences without leaving the current webpage.
+English Reader is a reading-learning prototype with separate Chrome and Stay/Safari editions.
 
 ## Features
 
@@ -25,6 +25,16 @@ Chrome 138 or later is required for built-in translation. The first translation 
 5. Open an English webpage and select a word or sentence.
 
 Chrome internal pages, the Chrome Web Store, and some protected documents do not allow content-script injection.
+
+## Stay / Safari prototype
+
+The iPhone, iPad, and macOS Safari prototype is a standalone userscript at
+`platforms/stay/english-reader.user.js`. It runs through Stay and uses its local
+storage for the learning library. Unlike the Chrome edition, selected text is
+sent to an experimental Google Web Translation endpoint.
+
+See `docs/stay-testing.md` for phone installation and testing instructions, and
+`docs/project-structure.md` for the platform boundaries.
 
 ## Local checks
 
