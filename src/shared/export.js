@@ -9,11 +9,14 @@ export function createLibraryJson(library) {
 }
 
 export function createCsv(items) {
-  const headers = ["type", "text", "translation", "source_title", "source_url", "created_at"];
+  const headers = ["type", "language", "text", "ipa", "translation", "numbered_meanings", "source_title", "source_url", "created_at"];
   const rows = items.map((item) => [
     item.kind ?? "",
+    item.sourceLanguage ?? "",
     item.text ?? "",
+    item.ipa ?? "",
     item.kind === "sentence" ? item.translationZh ?? "" : item.chineseDefinition ?? "",
+    (item.meanings ?? []).map((meaning, index) => `${index + 1}. ${meaning.partOfSpeech}: ${meaning.definitionZh ?? meaning.definitionEn ?? ""}`).join("\n"),
     item.source?.pageTitle ?? "",
     item.source?.pageUrl ?? "",
     item.createdAt ?? ""

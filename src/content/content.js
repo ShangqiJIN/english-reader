@@ -14,9 +14,11 @@
     .actions { display: flex; align-items: center; gap: 6px; }
     h2 { margin: 5px 0 10px; font-size: 19px; line-height: 1.3; overflow-wrap: anywhere; }
     .title-row { display: flex; align-items: center; gap: 8px; margin: 5px 0 10px; }
-    .title-row h2 { flex: 1 1 auto; margin: 0; }
+    .title-row h2 { flex: 0 1 auto; margin: 0; }
     .title-row .speak { flex: 0 0 auto; }
     h2 strong { color: #17634d; text-decoration: underline; text-decoration-color: #a8cdbc; text-underline-offset: 3px; }
+    h2 .collocation-mark { color: #184f3f; font-weight: 800; text-decoration: underline; text-decoration-color: #79a898; text-underline-offset: 3px; }
+    .collocation-list strong { color: #184f3f; font-weight: 800; }
     p { margin: 7px 0; } ol { margin: 8px 0; padding-left: 22px; }
     button { border: 0; border-radius: 9px; padding: 7px 10px; background: #ebe5d7; color: #24221d; cursor: pointer; }
     button:hover { background: #ddd2bd; } .close, .speak { padding: 3px 8px; align-self: flex-start; }
@@ -32,8 +34,20 @@
   let selectionTimer = 0;
   const translatorPromises = new Map();
   let detectorPromise = null;
+  let lastSelectionRect = null;
   let selectionArmed = true;
   let selectingWithMouse = false;
+  let extensionEnabled = true;
+  const settingsReady = chrome.storage.local.get("extensionEnabled").then((settings) => {
+    extensionEnabled = settings.extensionEnabled !== false;
+  });
+
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.extensionEnabled) {
+      extensionEnabled = changes.extensionEnabled.newValue !== false;
+      if (!extensionEnabled) hide();
+    }
+  });
 
   document.addEventListener("mouseup", (event) => {
     selectingWithMouse = false;
@@ -63,21 +77,28 @@
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type === "english-reader-ping") {
-      sendResponse({ ok: true });
+      sendResponse({ ok: true, version: chrome.runtime.getManifest().version, enabled: extensionEnabled });
       return false;
     }
-    if (message?.type === "analyze-external-selection") analyze(message.text, null);
+    if (message?.type === "set-extension-enabled") {
+      extensionEnabled = message.enabled !== false;
+      if (!extensionEnabled) hide();
+      return false;
+    }
+    if (message?.type === "analyze-external-selection" && extensionEnabled) analyze(message.text, null, { before: [], after: [] });
     return false;
   });
 
-  function readSelection() {
-    if (!selectionArmed) return;
+  async function readSelection() {
+    await settingsReady;
+    if (!extensionEnabled || !selectionArmed) return;
     const selection = window.getSelection();
     if (isPopoverSelection(selection)) return;
     const text = selection?.toString().replace(/\s+/g, " ").trim();
     if (!text || text.length > 5000 || selection.rangeCount === 0) return;
     selectionArmed = false;
-    analyze(text, selection.getRangeAt(0).getBoundingClientRect());
+    const range = selection.getRangeAt(0);
+    analyze(text, range.getBoundingClientRect(), getWordWindow(range));
   }
 
   function scheduleSelection(delay) {
@@ -95,47 +116,108 @@
     return anchorRoot === shadow || focusRoot === shadow;
   }
 
-  async function analyze(text, rect) {
+  async function analyze(text, rect, wordWindow) {
     const serial = ++requestSerial;
     position(rect);
     renderLoading(text);
     let result = createImmediateResult(text);
-    renderResult(result);
     const context = getContext(text);
-    const localTranslation = detectAndTranslate(text, context, (status) => {
+    const translationTask = translateWithSelectedProvider(text, result.kind, context, wordWindow, (status) => {
       if (serial === requestSerial) renderLoading(text, status);
     });
     const response = await withTimeout(chrome.runtime.sendMessage({
       type: "analyze-selection",
-      payload: { text, context }
+      payload: { text, context, wordWindow }
     }), 2500).catch((error) => ({ ok: false, error: error.message }));
     if (serial !== requestSerial) return;
     if (response.ok) result = response.result;
     else result.storageWarning = "后台暂未响应；本次结果可能尚未保存。";
-    renderResult(result);
     try {
-      const translation = await localTranslation;
+      const translation = await translationTask;
       if (serial !== requestSerial) return;
-      if (result.kind === "sentence") result.translationZh = translation.text;
-      else result.chineseDefinition = translation.text;
+      if (result.kind === "sentence") result.translationZh = translation.analysis?.translationZh || translation.text;
+      else result.chineseDefinition = translation.analysis?.translationZh || translation.text;
       result.sourceLanguage = translation.sourceLanguage;
       result.sourceLanguageConfidence = translation.confidence;
-      result.translationProvider = "chrome-built-in";
-      await chrome.runtime.sendMessage({ type: "save-result", payload: result });
+      result.translationProvider = translation.provider;
+      result.providerWarning = translation.providerWarning || "";
+      if (translation.analysis?.segments?.length && result.kind === "sentence") result.segments = translation.analysis.segments;
+      if (translation.analysis?.collocations?.length && result.kind === "sentence") result.collocations = translation.analysis.collocations;
+      if (translation.analysis?.meanings?.length && result.kind === "vocabulary") result.meanings = translation.analysis.meanings;
+      renderResult(result);
+      if (result.kind === "vocabulary" && result.sourceLanguage === "en") {
+        await enrichVocabularyWithDeepSeek(result, serial);
+      }
+      const saveResponse = await chrome.runtime.sendMessage({ type: "save-result", payload: result });
+      result.saved = Boolean(saveResponse?.ok);
+      if (!result.saved) result.storageWarning = saveResponse?.error || "结果未能保存。";
       if (serial === requestSerial) renderResult(result);
+      if (translation.aiPromise) {
+        result.aiStatus = "pending";
+        renderResult(result);
+        const aiResponse = await translation.aiPromise;
+        if (serial !== requestSerial) return;
+        if (aiResponse.ok) {
+          applyAiAnalysis(result, aiResponse.result);
+          result.translationProvider = "deepseek";
+          result.aiStatus = "complete";
+          result.providerWarning = "";
+          const finalSave = await chrome.runtime.sendMessage({ type: "save-result", payload: result });
+          result.saved = Boolean(finalSave?.ok);
+        } else {
+          result.aiStatus = "failed";
+          result.providerWarning = `${aiResponse.error} 已保留 Chrome 本地结果。`;
+        }
+        renderResult(result);
+      }
     } catch (error) {
       if (serial !== requestSerial) return;
       result.translationError = friendlyTranslationError(error);
-      if (result.kind === "sentence") result.translationZh = "本地翻译未完成。";
-      else result.chineseDefinition = "本地翻译未完成。";
+      if (result.kind === "sentence") result.translationZh = "翻译未完成。";
+      else result.chineseDefinition = "翻译未完成。";
       renderResult(result);
     }
+  }
+
+  async function enrichVocabularyWithDeepSeek(result, serial) {
+    const contextPhrase = [...(result.wordWindow?.before || []), result.text, ...(result.wordWindow?.after || [])].join(" ");
+    result.meaningContext = contextPhrase;
+    const { translationProvider = "chrome" } = await chrome.storage.local.get("translationProvider");
+    if (translationProvider !== "deepseek") return;
+
+    // DEEPSEEK VOCABULARY: this marked request is the single place to change or disable the enhancement.
+    result.aiStatus = "pending";
+    renderResult(result);
+    const response = await withTimeout(chrome.runtime.sendMessage({
+      type: "deepseek-analyze",
+      payload: { kind: "vocabulary", text: result.text, context: contextPhrase, wordWindow: result.wordWindow }
+    }), 30000).catch((error) => ({ ok: false, error: error.message }));
+    if (serial !== requestSerial) return;
+    if (response?.ok && response.result?.meanings?.length) {
+      result.meanings = response.result.meanings.slice(0, 2);
+      result.aiStatus = "complete";
+      result.translationProvider = "chrome+deepseek";
+    } else {
+      result.meanings = [{ partOfSpeech: "preferred", definitionZh: result.chineseDefinition }];
+      result.aiStatus = "failed";
+      result.providerWarning = `${response?.error || "DeepSeek 没有返回词义。"} 已保留 Chrome 本地首选释义。`;
+    }
+    renderResult(result);
+  }
+
+  function applyAiAnalysis(result, analysis) {
+    if (analysis?.translationZh) {
+      if (result.kind === "sentence") result.translationZh = analysis.translationZh;
+      else result.chineseDefinition = analysis.translationZh;
+    }
+    if (result.kind === "sentence" && analysis?.segments?.length) result.segments = analysis.segments;
+    if (result.kind === "sentence" && analysis?.collocations?.length) result.collocations = analysis.collocations;
   }
 
   function createImmediateResult(text) {
     const normalized = text.replace(/\s+/g, " ").trim();
     const words = normalized.split(" ");
-    const isSentence = words.length >= 7 || /[.!?][\"'\u201d\u2019)]?$/.test(normalized);
+    const isSentence = words.length >= 5 || /[.!?][\"'\u201d\u2019)]?$/.test(normalized);
     if (!isSentence) {
       return {
         id: crypto.randomUUID(),
@@ -166,10 +248,12 @@
     const rules = [
       ["according to", "根据；按照"], ["as a result", "因此；结果"], ["as well as", "以及；也"],
       ["be able to", "能够"], ["be based on", "基于"], ["be responsible for", "负责"],
+      ["behind the scenes", "在幕后"],
       ["because of", "因为；由于"], ["carry out", "执行；开展"], ["come up with", "提出；想出"],
       ["depend on", "取决于"], ["due to", "由于"], ["even though", "即使；尽管"],
       ["figure out", "弄清楚；解决"], ["focus on", "专注于"], ["in addition to", "除……之外还"],
       ["in order to", "为了"], ["in terms of", "就……而言"], ["lead to", "导致"],
+      ["open source", "开源"], ["plastered onto", "贴满；贴在……上"],
       ["make use of", "利用"], ["rather than", "而不是"], ["refer to", "指的是；提到"],
       ["result in", "导致"], ["take advantage of", "利用"], ["take into account", "把……考虑在内"],
       ["with regard to", "关于"]
@@ -192,6 +276,36 @@
     if (sourceLanguage === "zh") throw new Error("already-chinese");
     const translated = await translateLocally(text, sourceLanguage, onStatus);
     return { text: translated, sourceLanguage, confidence: detection.confidence };
+  }
+
+  async function translateWithSelectedProvider(text, kind, context, wordWindow, onStatus) {
+    const { translationProvider = "chrome" } = await chrome.storage.local.get("translationProvider");
+    const detection = await detectSourceLanguage(text, context, onStatus);
+    const sourceLanguage = normalizeLanguageCode(detection.detectedLanguage);
+    if (sourceLanguage === "zh") throw new Error("already-chinese");
+    if (translationProvider === "deepseek" && kind === "sentence") {
+      onStatus("正在本地翻译；DeepSeek 将在后台补充分析…");
+      const aiPromise = withTimeout(chrome.runtime.sendMessage({ type: "deepseek-analyze", payload: { kind, text, context, wordWindow } }), 30000)
+        .then((response) => response?.ok ? { ok: true, result: response.result } : { ok: false, error: response?.error || "DeepSeek 分析失败。" })
+        .catch((error) => ({ ok: false, error: error.message || "DeepSeek 分析失败。" }));
+      try {
+        const translated = await translateLocally(text, sourceLanguage, onStatus);
+        return { text: translated, sourceLanguage, confidence: detection.confidence, provider: "chrome-preview", aiPromise };
+      } catch (_error) {
+        const aiResponse = await aiPromise;
+        if (!aiResponse.ok) throw new Error(`${aiResponse.error} Chrome 本地翻译也不可用。`);
+        return { text: aiResponse.result.translationZh, analysis: aiResponse.result, sourceLanguage, confidence: detection.confidence, provider: "deepseek" };
+      }
+    }
+    try {
+      const translated = await translateLocally(text, sourceLanguage, onStatus);
+      return { text: translated, sourceLanguage, confidence: detection.confidence, provider: "chrome-built-in" };
+    } catch (error) {
+      const providerError = new Error(error?.message || "Chrome translation failed.");
+      providerError.name = error?.name || "Error";
+      providerError.chromeOnly = true;
+      throw providerError;
+    }
   }
 
   async function detectSourceLanguage(text, context, onStatus) {
@@ -261,25 +375,72 @@
     return index < 0 ? "" : bodyText.slice(Math.max(0, index - 300), index + text.length + 300);
   }
 
+  function getWordWindow(range) {
+    try {
+      const beforeRange = document.createRange();
+      beforeRange.selectNodeContents(document.body);
+      beforeRange.setEnd(range.startContainer, range.startOffset);
+      const afterRange = document.createRange();
+      afterRange.selectNodeContents(document.body);
+      afterRange.setStart(range.endContainer, range.endOffset);
+      const beforeSentence = beforeRange.toString().split(/[.!?。！？][\s"'’”)]*/).pop() || "";
+      const afterSentence = afterRange.toString().split(/[.!?。！？]/)[0] || "";
+      const words = (value) => value.match(/[\p{L}\p{M}]+(?:['’-][\p{L}\p{M}]+)*/gu) || [];
+      return { before: words(beforeSentence).slice(-3), after: words(afterSentence).slice(0, 3) };
+    } catch (_error) {
+      return { before: [], after: [] };
+    }
+  }
+
   function position(rect) {
+    lastSelectionRect = rect;
     card.classList.remove("hidden");
     const left = rect ? Math.min(Math.max(12, rect.left), window.innerWidth - 372) : 24;
     const top = rect ? Math.min(rect.bottom + 10, window.innerHeight - 300) : 80;
     card.style.left = `${Math.max(12, left)}px`;
     card.style.top = `${Math.max(12, top)}px`;
+    fitCardToViewport(rect);
+  }
+
+  function fitCardToViewport(rect) {
+    window.requestAnimationFrame(() => {
+      if (card.classList.contains("hidden")) return;
+      const margin = 12;
+      card.style.maxHeight = `${Math.max(180, window.innerHeight - margin * 2)}px`;
+      const height = Math.min(card.scrollHeight, window.innerHeight - margin * 2);
+      const below = rect?.bottom + 10;
+      const above = rect?.top - height - 10;
+      const top = rect && below + height <= window.innerHeight - margin ? below : rect && above >= margin ? above : margin;
+      card.style.top = `${Math.max(margin, Math.min(top, window.innerHeight - height - margin))}px`;
+    });
   }
 
   function renderLoading(text, status = "正在生成本地预览…") {
     card.replaceChildren(header("正在分析"), heading(text), paragraph(status, "muted"));
+    fitCardToViewport(lastSelectionRect);
   }
 
   function renderResult(result) {
     card.dataset.sourceLanguage = result.sourceLanguage || "en";
     const fragment = document.createDocumentFragment();
-    fragment.append(header(result.kind === "sentence" ? "长难句" : result.entryType === "phrase" ? "短语" : "单词"));
+    fragment.append(header(result.kind === "sentence" ? "句子" : result.entryType === "phrase" ? "短语" : "单词"));
     fragment.append(headingWithSpeech(result.text, result.collocations ?? [], result.sourceLanguage || "en"));
     if (result.kind === "vocabulary") {
-      fragment.append(paragraph(result.chineseDefinition));
+      if (result.meaningContext) fragment.append(paragraph(`判义上下文：${result.meaningContext}`, "muted"));
+      if (result.ipa) fragment.append(paragraph(result.ipa, "muted"));
+      if (result.meanings?.length) {
+        const meanings = document.createElement("ol");
+        result.meanings.forEach((meaning) => {
+          const item = document.createElement("li");
+          const part = document.createElement("strong");
+          part.textContent = partOfSpeechName(meaning.partOfSpeech);
+          item.append(part, document.createTextNode(` ${meaning.definitionZh || meaning.definitionEn}`));
+          meanings.appendChild(item);
+        });
+        fragment.appendChild(meanings);
+      } else {
+        fragment.append(paragraph(result.chineseDefinition));
+      }
       if (result.englishDefinition) fragment.append(paragraph(result.englishDefinition, "muted"));
       if (result.phraseMeaning) fragment.append(paragraph(result.phraseMeaning));
     } else {
@@ -295,6 +456,7 @@
       if (result.collocations?.length) {
         const title = paragraph("固定搭配", "label");
         const collocationList = document.createElement("ol");
+        collocationList.className = "collocation-list";
         result.collocations.forEach(({ phrase, meaningZh }) => {
           const item = document.createElement("li");
           const strong = document.createElement("strong");
@@ -306,17 +468,29 @@
       }
     }
     if (result.translationError) fragment.append(paragraph(result.translationError, "muted"));
+    if (result.aiStatus === "pending") fragment.append(paragraph("DeepSeek V4 Flash 正在分析…", "muted"));
+    if (result.aiStatus === "complete") fragment.append(paragraph("DeepSeek V4 Flash 已完成", "saved"));
+    if (result.kind === "sentence" && result.translationProvider === "chrome-built-in") fragment.append(paragraph("当前使用 Chrome 本地句子模式；DeepSeek 未启用。", "muted"));
+    if (result.providerWarning) fragment.append(paragraph(result.providerWarning, "muted"));
     if (result.storageWarning) fragment.append(paragraph(result.storageWarning, "muted"));
     if (result.sourceLanguage) fragment.append(paragraph(`识别语言：${languageName(result.sourceLanguage)}`, "muted"));
-    fragment.append(paragraph("已保存到本地学习库", "saved"));
+    if (result.saved) fragment.append(paragraph("已保存到本地学习库", "saved"));
     card.replaceChildren(fragment);
+    fitCardToViewport(lastSelectionRect);
+  }
+
+  function partOfSpeechName(partOfSpeech) {
+    const names = { preferred: "首选释义", contextPhrase: "语境短语", noun: "名词", verb: "动词", adjective: "形容词", adverb: "副词", pronoun: "代词", preposition: "介词", conjunction: "连词", interjection: "感叹词" };
+    return names[partOfSpeech] ?? partOfSpeech;
   }
 
   function renderError(message) {
     card.replaceChildren(header("无法分析"), paragraph(message || "发生未知错误。"));
+    fitCardToViewport(lastSelectionRect);
   }
 
   function friendlyTranslationError(error) {
+    if (/DeepSeek|API Key/.test(error?.message || "")) return error.message;
     if (error?.message === "detector-not-supported") {
       return "当前 Chrome 不支持内置语言识别，请升级 Chrome 后重试。";
     }
@@ -335,7 +509,8 @@
     if (error?.name === "NotAllowedError") {
       return "首次下载语言包需要用户操作，请重新选择一次文本。";
     }
-    return "本地翻译暂时不可用，请稍后重试。";
+    if (error?.chromeOnly) return "当前使用 Chrome 本地模式，但本地翻译未成功。若要使用 DeepSeek 句子增强，请在扩展按钮中启用并测试连接。";
+    return "Chrome 本地翻译暂时不可用，请稍后重试。";
   }
 
   function header(label, speechText = "") {
@@ -387,7 +562,8 @@
     const pattern = new RegExp("(" + phrases.map(escapeRegExp).join("|") + ")", "gi");
     text.split(pattern).filter(Boolean).forEach((part) => {
       const matched = phrases.some((phrase) => phrase.toLocaleLowerCase("en-US") === part.toLocaleLowerCase("en-US"));
-      const child = document.createElement(matched ? "strong" : "span");
+      const child = document.createElement("span");
+      if (matched) child.className = "collocation-mark";
       child.textContent = part;
       node.appendChild(child);
     });

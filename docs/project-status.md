@@ -1,0 +1,85 @@
+# English Reader stage summary
+
+Last reviewed: 2026-09-01  
+Chrome version: 0.7.6  
+Project root: `/Volumes/T7/CodexProjects/english-reader`
+
+This file is the durable handoff for future conversations. Read it before changing the project.
+
+## Product
+
+English Reader is a reading-time learning tool. Selecting text on the current webpage opens an in-page card so the user can understand and save it without leaving the page.
+
+- Vocabulary: Chinese meaning, optional IPA, numbered meanings, speech, and automatic saving.
+- Sentences: Chinese translation, grammatical chunks, fixed expressions, speech, and automatic saving.
+- Learning library: stored locally, grouped/filterable by detected language, searchable, speakable, exportable as JSON/CSV, and deletable singly or in batches.
+
+## Confirmed behavior
+
+- Chrome built-in Language Detector identifies English, French, German, Korean, and other supported languages.
+- Chrome built-in Translator is the default translation provider.
+- Chrome local mode handles vocabulary and sentences without a remote dictionary.
+- Chrome plus DeepSeek mode enhances vocabulary, short phrases, and sentences. There are no runtime dictionary requests.
+- English word ranking uses exactly the three words before and after the selection and stops at sentence punctuation.
+- Vocabulary shows at most two distinct, context-ranked meanings. The first is the preferred contextual meaning.
+- DeepSeek is optional. One provider selector enables it consistently for vocabulary, short phrases, and sentences.
+- DeepSeek sentence mode uses Chrome as the immediate preview when available, then replaces/enhances it with DeepSeek translation, chunks, and fixed expressions.
+- Fixed expressions are shown as dark-green text, not a colored background.
+- Speech uses browser/system voices; the speaker button follows the selected word or sentence.
+- The card is fixed to the browser viewport and repositions above/below the selection to remain visible.
+- One selection creates one request. Clicking outside closes/re-arms it; selecting text inside the card does not trigger another lookup.
+- The popup master switch disables mouse selection, keyboard selection, and context-menu analysis while leaving the learning library available.
+- Sentence chunks always remain verbatim excerpts from the original sentence. Chinese or paraphrased DeepSeek chunks are rejected and the local English chunks remain.
+
+## Platform split
+
+- Chrome Manifest V3 implementation: `manifest.json` and `src/`.
+- Stay/Safari prototype: `platforms/stay/english-reader.user.js`.
+- Shared product ideas may be ported manually, but Chrome-only changes must not silently modify the Stay version.
+- Chrome extensions do not run in iPhone/iPad Chrome. The Stay userscript is the current mobile Safari experiment.
+
+## Data, privacy, and keys
+
+- Chrome learning records and settings are stored in `chrome.storage.local` inside the user's Chrome profile, not in this repository or on the SSD.
+- Chrome on-device translation does not send selected text to a translation server.
+- If the user enables DeepSeek for sentences, selected sentences and nearby context are sent to DeepSeek. Vocabulary sends only the selected text and its three-word windows.
+- The DeepSeek key is user-provided and stored in `chrome.storage.local`. It must never be committed, logged, copied into documentation, or shared between users.
+- A previously exposed key must be revoked and replaced by its owner.
+
+## Current implementation
+
+- No npm dependencies and no build step.
+- All repository paths stay lowercase for the case-insensitive exFAT SSD.
+- Source, tests, generated files, caches, and temporary project files must remain under the project root.
+- Packaged local collocation rules cover a small explicit list; DeepSeek may add sentence-specific expressions when enabled.
+- DeepSeek vocabulary results contain at most two distinct meanings and put the contextual meaning first. Tune the two marked `DEEPSEEK VOCABULARY` blocks if comparison testing requires changes.
+
+## Known limitations
+
+- Chrome Language Detector and Translator require a compatible Chrome version and may need a one-time language-pack download.
+- Protected Chrome pages, the Chrome Web Store, browser PDF viewers, and some sandboxed frames cannot run the content script.
+- DeepSeek can fail independently of local translation; Chrome results remain as the fallback.
+- Local collocation recognition is a finite phrase list, not a general parser.
+- Existing failed records saved by older versions remain in the learning library until the user deletes them.
+- exFAT is suitable for the unpacked prototype but lacks APFS permissions/symlink semantics; keep lowercase names and avoid case-only renames.
+
+## Current checkpoint
+
+- Local Chrome version is 0.7.6.
+- GitHub is intentionally older (last known uploaded version: 0.4.1). Do not upload unless the user explicitly asks.
+- Version 0.7.6 rejects translated/paraphrased DeepSeek sentence chunks and adds a popup master switch for all webpage selection handling.
+- Run `node --test tests/*.test.mjs` after code changes.
+
+## Reload and test checklist
+
+1. Open `chrome://extensions` and reload English Reader.
+2. Refresh every webpage used for testing; an already-open page keeps the old content script.
+3. Open the extension popup and confirm its version matches the content-script version.
+4. Confirm Chrome Translator availability in the popup.
+5. For DeepSeek sentence testing, choose DeepSeek, grant the requested host permission, save, and require a successful connection test.
+6. Test a word or short phrase with ambiguity and verify no more than two meanings.
+7. Test vocabulary and a sentence first in Chrome mode, then in DeepSeek mode, and verify Chrome remains when enhancement fails.
+
+## Next-conversation handoff
+
+Start with: `继续 /Volumes/T7/CodexProjects/english-reader，请先阅读 docs/project-status.md，并检查当前 manifest 版本后再修改。`

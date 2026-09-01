@@ -17,3 +17,18 @@ test("escapes commas and quotes in csv", () => {
   }]);
   assert.match(csv, /"take ""care"", now"/);
 });
+
+test("exports language ipa and numbered meanings to csv", () => {
+  const csv = createCsv([{
+    kind: "vocabulary",
+    sourceLanguage: "en",
+    text: "attempt",
+    ipa: "/əˈtɛmpt/",
+    chineseDefinition: "尝试",
+    meanings: [{ partOfSpeech: "noun", definitionZh: "尝试" }, { partOfSpeech: "verb", definitionZh: "试图" }]
+  }]);
+  assert.match(csv, /language,text,ipa/);
+  assert.match(csv, /\/əˈtɛmpt\//);
+  assert.match(csv, /1\. noun: 尝试/);
+  assert.match(csv, /2\. verb: 试图/);
+});

@@ -180,6 +180,25 @@ function render() {
     const detail = document.createElement("p");
     detail.textContent = item.kind === "sentence" ? item.translationZh : item.chineseDefinition;
     article.append(head, detail);
+    if (item.ipa) {
+      const ipa = document.createElement("p");
+      ipa.className = "ipa";
+      ipa.textContent = item.ipa;
+      article.appendChild(ipa);
+    }
+    if (item.meanings?.length) {
+      detail.remove();
+      const meanings = document.createElement("ol");
+      meanings.className = "meanings";
+      item.meanings.forEach((meaning) => {
+        const row = document.createElement("li");
+        const part = document.createElement("strong");
+        part.textContent = partOfSpeechName(meaning.partOfSpeech);
+        row.append(part, document.createTextNode(` ${meaning.definitionZh || meaning.definitionEn}`));
+        meanings.appendChild(row);
+      });
+      article.appendChild(meanings);
+    }
     if (item.collocations?.length) {
       const collocations = document.createElement("ul");
       collocations.className = "collocations";
@@ -200,6 +219,11 @@ function render() {
     article.appendChild(meta);
     list.appendChild(article);
   });
+}
+
+function partOfSpeechName(partOfSpeech) {
+  const names = { preferred: "首选释义", contextPhrase: "语境短语", noun: "名词", verb: "动词", adjective: "形容词", adverb: "副词", pronoun: "代词", preposition: "介词", conjunction: "连词", interjection: "感叹词" };
+  return names[partOfSpeech] ?? partOfSpeech;
 }
 
 function updateSelectionControls() {

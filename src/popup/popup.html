@@ -9,8 +9,26 @@
   <body>
     <h1>English Reader <small id="version"></small></h1>
     <p>在英文网页中选择单词、短语或句子即可开始学习。</p>
+    <label class="master-switch" for="extension-enabled">
+      <span>启用网页划词</span>
+      <input id="extension-enabled" type="checkbox">
+    </label>
     <p id="connection" class="connection">正在检查当前网页…</p>
     <p id="translator" class="connection">正在检查本地翻译…</p>
+    <section class="provider">
+      <label for="provider">翻译与分析方式</label>
+      <select id="provider">
+        <option value="chrome">Chrome 本地（默认）</option>
+        <option value="deepseek">Chrome + DeepSeek 增强</option>
+      </select>
+      <div id="deepseek-settings" hidden>
+        <p class="hint"><strong>模型：</strong>deepseek-v4-flash</p>
+        <label for="deepseek-key">DeepSeek API Key</label>
+        <input id="deepseek-key" type="password" autocomplete="off" placeholder="sk-…">
+        <p class="hint">Key 仅保存在本机 Chrome 扩展存储中。词汇只发送所选内容和前后三词；句子会发送原句及附近上下文。</p>
+      </div>
+      <button id="save-provider" class="secondary">保存翻译设置</button>
+    </section>
     <button id="open">打开学习库</button>
     <p id="status" role="status"></p>
     <script src="popup.js"></script>
