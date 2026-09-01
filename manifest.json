@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "English Reader",
-  "version": "0.3.1",
-  "description": "Learn vocabulary and difficult sentences while reading English webpages.",
+  "version": "0.4.1",
+  "description": "Detect and learn words and difficult sentences in multiple languages while reading webpages.",
   "permissions": ["storage", "sidePanel", "contextMenus", "activeTab"],
   "host_permissions": [],
   "background": {
