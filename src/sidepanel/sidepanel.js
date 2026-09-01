@@ -3,8 +3,10 @@ import { createCsv, createLibraryJson } from "../shared/export.js";
 let library = { vocabulary: [], sentences: [] };
 let activeTab = "vocabulary";
 let searchQuery = "";
+let activeLanguage = "all";
 let visibleItems = [];
 const selectedIds = new Set();
+const languageNames = { en: "英语", fr: "法语", de: "德语", ko: "韩语", es: "西班牙语", ja: "日语", it: "意大利语", pt: "葡萄牙语", ru: "俄语" };
 
 document.querySelectorAll("nav button").forEach((button) => {
   button.addEventListener("click", () => {
@@ -17,6 +19,12 @@ document.querySelectorAll("nav button").forEach((button) => {
 
 document.querySelector("#search").addEventListener("input", (event) => {
   searchQuery = event.target.value.trim().toLocaleLowerCase();
+  selectedIds.clear();
+  render();
+});
+
+document.querySelector("#language-filter").addEventListener("change", (event) => {
+  activeLanguage = event.target.value;
   selectedIds.clear();
   render();
 });
@@ -73,17 +81,42 @@ async function load() {
   });
   document.querySelector("#summary").textContent =
     `${library.vocabulary.length} 个词语 · ${library.sentences.length} 个句子`;
+  updateLanguageFilter();
   render();
+}
+
+function itemLanguage(item) {
+  return item.sourceLanguage || "en";
+}
+
+function languageLabel(code) {
+  return languageNames[code] ?? `其他语言（${code}）`;
+}
+
+function updateLanguageFilter() {
+  const select = document.querySelector("#language-filter");
+  const counts = new Map();
+  [...library.vocabulary, ...library.sentences].forEach((item) => {
+    const language = itemLanguage(item);
+    counts.set(language, (counts.get(language) || 0) + 1);
+  });
+  const available = [...counts.keys()].sort((a, b) => languageLabel(a).localeCompare(languageLabel(b), "zh-CN"));
+  if (activeLanguage !== "all" && !counts.has(activeLanguage)) activeLanguage = "all";
+  select.replaceChildren(new Option("全部语言", "all"));
+  available.forEach((language) => select.appendChild(new Option(`${languageLabel(language)}（${counts.get(language)}）`, language)));
+  select.value = activeLanguage;
 }
 
 function render() {
   const list = document.querySelector("#list");
   visibleItems = (library[activeTab] ?? []).filter((item) => {
+    if (activeLanguage !== "all" && itemLanguage(item) !== activeLanguage) return false;
     if (!searchQuery) return true;
     const searchable = [
       item.text,
       item.chineseDefinition,
       item.translationZh,
+      item.sourceLanguage,
       item.source?.pageTitle,
       ...(item.collocations ?? []).flatMap((entry) => [entry.phrase, entry.meaningZh])
     ].filter(Boolean).join(" ").toLocaleLowerCase();
@@ -105,7 +138,21 @@ function render() {
     return;
   }
 
-  visibleItems.forEach((item) => {
+  let renderedLanguage = "";
+  const groupedItems = [...visibleItems].sort((a, b) => {
+    const languageOrder = languageLabel(itemLanguage(a)).localeCompare(languageLabel(itemLanguage(b)), "zh-CN");
+    return languageOrder || String(b.createdAt).localeCompare(String(a.createdAt));
+  });
+  groupedItems.forEach((item) => {
+    const itemLanguageCode = itemLanguage(item);
+    if (itemLanguageCode !== renderedLanguage) {
+      renderedLanguage = itemLanguageCode;
+      const group = document.createElement("h2");
+      group.className = "language-group";
+      const count = groupedItems.filter((candidate) => itemLanguage(candidate) === itemLanguageCode).length;
+      group.textContent = `${languageLabel(itemLanguageCode)} · ${count}`;
+      list.appendChild(group);
+    }
     const article = document.createElement("article");
     article.className = "item";
     const head = document.createElement("div");
@@ -126,9 +173,9 @@ function render() {
     const speak = document.createElement("button");
     speak.className = "speak";
     speak.appendChild(createSpeakerIcon());
-    speak.title = "朗读英文";
-    speak.setAttribute("aria-label", "朗读英文");
-    speak.addEventListener("click", () => speakEnglish(item.text));
+    speak.title = "朗读原文";
+    speak.setAttribute("aria-label", "朗读原文");
+    speak.addEventListener("click", () => speakText(item.text, item.sourceLanguage || "en"));
     head.append(selection, speak);
     const detail = document.createElement("p");
     detail.textContent = item.kind === "sentence" ? item.translationZh : item.chineseDefinition;
@@ -148,7 +195,8 @@ function render() {
     const meta = document.createElement("p");
     meta.className = "meta";
     const date = item.createdAt ? new Date(item.createdAt).toLocaleString("zh-CN") : "时间未知";
-    meta.textContent = [item.source?.pageTitle, date].filter(Boolean).join(" · ");
+    const language = languageLabel(itemLanguage(item));
+    meta.textContent = [language, item.source?.pageTitle, date].filter(Boolean).join(" · ");
     article.appendChild(meta);
     list.appendChild(article);
   });
@@ -202,15 +250,26 @@ function setNotice(message, isError = false) {
   notice.style.color = isError ? "#8d3b32" : "#347453";
 }
 
-function speakEnglish(text) {
+function speakText(text, language = "en") {
   if (!("speechSynthesis" in window)) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "en-US";
-  utterance.rate = text.includes(" ") ? 0.88 : 0.8;
+  const voiceLocales = { en: "en-US", fr: "fr-FR", de: "de-DE", ko: "ko-KR", es: "es-ES", ja: "ja-JP", it: "it-IT", pt: "pt-PT", ru: "ru-RU" };
+  utterance.lang = voiceLocales[language] ?? language;
+  const sentenceRates = { ko: 0.92, ja: 0.9, de: 0.9, fr: 0.92, en: 0.88 };
+  const wordRates = { ko: 0.82, ja: 0.82, de: 0.8, fr: 0.82, en: 0.8 };
+  utterance.rate = text.includes(" ") ? (sentenceRates[language] ?? 0.9) : (wordRates[language] ?? 0.82);
+  utterance.pitch = 1;
   const voices = window.speechSynthesis.getVoices();
-  utterance.voice = voices.find((voice) => voice.lang.toLocaleLowerCase().startsWith("en-us"))
-    ?? voices.find((voice) => voice.lang.toLocaleLowerCase().startsWith("en"))
-    ?? null;
+  const requestedLocale = utterance.lang.toLocaleLowerCase();
+  const matchingVoices = voices.filter((voice) => voice.lang.toLocaleLowerCase().startsWith(language));
+  utterance.voice = matchingVoices.sort((a, b) => voiceScore(b, requestedLocale, language) - voiceScore(a, requestedLocale, language))[0] ?? null;
   window.speechSynthesis.speak(utterance);
+}
+
+function voiceScore(voice, requestedLocale, language) {
+  const locale = voice.lang.toLocaleLowerCase();
+  const preferredNames = { ko: ["yuna"], ja: ["kyoko", "otoya"], de: ["anna"], fr: ["amelie", "thomas"], en: ["samantha", "alex"] };
+  const preferred = (preferredNames[language] || []).some((name) => voice.name.toLocaleLowerCase().includes(name));
+  return (locale === requestedLocale ? 100 : 0) + (preferred ? 60 : 0) + (voice.localService ? 20 : 0) + (voice.default ? 5 : 0);
 }
