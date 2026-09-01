@@ -13,6 +13,9 @@
     .label { color: #796e5b; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
     .actions { display: flex; align-items: center; gap: 6px; }
     h2 { margin: 5px 0 10px; font-size: 19px; line-height: 1.3; overflow-wrap: anywhere; }
+    .title-row { display: flex; align-items: center; gap: 8px; margin: 5px 0 10px; }
+    .title-row h2 { flex: 1 1 auto; margin: 0; }
+    .title-row .speak { flex: 0 0 auto; }
     h2 strong { color: #17634d; text-decoration: underline; text-decoration-color: #a8cdbc; text-underline-offset: 3px; }
     p { margin: 7px 0; } ol { margin: 8px 0; padding-left: 22px; }
     button { border: 0; border-radius: 9px; padding: 7px 10px; background: #ebe5d7; color: #24221d; cursor: pointer; }
@@ -27,7 +30,8 @@
 
   let requestSerial = 0;
   let selectionTimer = 0;
-  let translatorPromise = null;
+  const translatorPromises = new Map();
+  let detectorPromise = null;
   let selectionArmed = true;
   let selectingWithMouse = false;
 
@@ -97,12 +101,13 @@
     renderLoading(text);
     let result = createImmediateResult(text);
     renderResult(result);
-    const localTranslation = translateLocally(text, (status) => {
+    const context = getContext(text);
+    const localTranslation = detectAndTranslate(text, context, (status) => {
       if (serial === requestSerial) renderLoading(text, status);
     });
     const response = await withTimeout(chrome.runtime.sendMessage({
       type: "analyze-selection",
-      payload: { text, context: getContext(text) }
+      payload: { text, context }
     }), 2500).catch((error) => ({ ok: false, error: error.message }));
     if (serial !== requestSerial) return;
     if (response.ok) result = response.result;
@@ -111,8 +116,10 @@
     try {
       const translation = await localTranslation;
       if (serial !== requestSerial) return;
-      if (result.kind === "sentence") result.translationZh = translation;
-      else result.chineseDefinition = translation;
+      if (result.kind === "sentence") result.translationZh = translation.text;
+      else result.chineseDefinition = translation.text;
+      result.sourceLanguage = translation.sourceLanguage;
+      result.sourceLanguageConfidence = translation.confidence;
       result.translationProvider = "chrome-built-in";
       await chrome.runtime.sendMessage({ type: "save-result", payload: result });
       if (serial === requestSerial) renderResult(result);
@@ -179,17 +186,46 @@
     ]);
   }
 
-  async function translateLocally(text, onStatus) {
+  async function detectAndTranslate(text, context, onStatus) {
+    const detection = await detectSourceLanguage(text, context, onStatus);
+    const sourceLanguage = normalizeLanguageCode(detection.detectedLanguage);
+    if (sourceLanguage === "zh") throw new Error("already-chinese");
+    const translated = await translateLocally(text, sourceLanguage, onStatus);
+    return { text: translated, sourceLanguage, confidence: detection.confidence };
+  }
+
+  async function detectSourceLanguage(text, context, onStatus) {
+    if (!("LanguageDetector" in self)) throw new Error("detector-not-supported");
+    onStatus("正在识别所选语言…");
+    if (!detectorPromise) {
+      detectorPromise = self.LanguageDetector.create().catch((error) => {
+        detectorPromise = null;
+        throw error;
+      });
+    }
+    const detector = await detectorPromise;
+    let results = await detector.detect(text);
+    let best = results?.[0];
+    if ((!best || best.confidence < 0.55) && text.length < 24 && context) {
+      results = await detector.detect(context.slice(0, 1200));
+      best = results?.[0];
+    }
+    if (!best?.detectedLanguage || best.detectedLanguage === "und") throw new Error("language-undetected");
+    return best;
+  }
+
+  async function translateLocally(text, sourceLanguage, onStatus) {
     if (!("Translator" in self)) {
       throw new Error("translator-not-supported");
     }
 
-    if (!translatorPromise) {
+    const pairKey = `${sourceLanguage}->zh`;
+    if (!translatorPromises.has(pairKey)) {
       // Call create() before the first await so Chrome can associate a possible
       // language-pack download with the user's selection gesture.
-      onStatus("正在启动本地翻译；首次使用可能需要下载语言包…");
-      translatorPromise = self.Translator.create({
-        sourceLanguage: "en",
+      onStatus(`正在启动${languageName(sourceLanguage)}翻译；首次使用可能需要下载语言包…`);
+      const promise = self.Translator.create({
+        sourceLanguage,
         targetLanguage: "zh",
         monitor(monitor) {
           monitor.addEventListener("downloadprogress", (event) => {
@@ -197,14 +233,26 @@
           });
         }
       }).catch((error) => {
-        translatorPromise = null;
+        translatorPromises.delete(pairKey);
         throw error;
       });
+      translatorPromises.set(pairKey, promise);
     }
 
-    const translator = await translatorPromise;
-    onStatus("正在本地翻译…");
+    const translator = await translatorPromises.get(pairKey);
+    onStatus(`正在将${languageName(sourceLanguage)}翻译成中文…`);
     return translator.translate(text);
+  }
+
+  function normalizeLanguageCode(code) {
+    const lower = String(code ?? "").toLocaleLowerCase();
+    if (lower.startsWith("zh")) return "zh";
+    return lower.split("-")[0];
+  }
+
+  function languageName(code) {
+    const names = { en: "英语", fr: "法语", de: "德语", ko: "韩语", es: "西班牙语", ja: "日语", it: "意大利语", pt: "葡萄牙语", ru: "俄语" };
+    return names[code] ?? `源语言（${code}）`;
   }
 
   function getContext(text) {
@@ -222,13 +270,14 @@
   }
 
   function renderLoading(text, status = "正在生成本地预览…") {
-    card.replaceChildren(header("正在分析", text), heading(text), paragraph(status, "muted"));
+    card.replaceChildren(header("正在分析"), heading(text), paragraph(status, "muted"));
   }
 
   function renderResult(result) {
+    card.dataset.sourceLanguage = result.sourceLanguage || "en";
     const fragment = document.createDocumentFragment();
-    fragment.append(header(result.kind === "sentence" ? "长难句" : result.entryType === "phrase" ? "短语" : "单词", result.text));
-    fragment.append(highlightedHeading(result.text, result.collocations ?? []));
+    fragment.append(header(result.kind === "sentence" ? "长难句" : result.entryType === "phrase" ? "短语" : "单词"));
+    fragment.append(headingWithSpeech(result.text, result.collocations ?? [], result.sourceLanguage || "en"));
     if (result.kind === "vocabulary") {
       fragment.append(paragraph(result.chineseDefinition));
       if (result.englishDefinition) fragment.append(paragraph(result.englishDefinition, "muted"));
@@ -258,6 +307,7 @@
     }
     if (result.translationError) fragment.append(paragraph(result.translationError, "muted"));
     if (result.storageWarning) fragment.append(paragraph(result.storageWarning, "muted"));
+    if (result.sourceLanguage) fragment.append(paragraph(`识别语言：${languageName(result.sourceLanguage)}`, "muted"));
     fragment.append(paragraph("已保存到本地学习库", "saved"));
     card.replaceChildren(fragment);
   }
@@ -267,11 +317,20 @@
   }
 
   function friendlyTranslationError(error) {
+    if (error?.message === "detector-not-supported") {
+      return "当前 Chrome 不支持内置语言识别，请升级 Chrome 后重试。";
+    }
+    if (error?.message === "language-undetected") {
+      return "暂时无法确定所选文本的语言；请选择更长的词组或句子后重试。";
+    }
+    if (error?.message === "already-chinese") {
+      return "检测到所选内容已经是中文，因此没有再次翻译。";
+    }
     if (error?.message === "translator-not-supported") {
       return "当前 Chrome 不支持内置翻译，请升级到 Chrome 138 或更高版本。";
     }
     if (error?.message === "language-pair-unavailable") {
-      return "当前 Chrome 无法使用英译中语言包。";
+      return "当前 Chrome 无法使用该语言到中文的翻译包。";
     }
     if (error?.name === "NotAllowedError") {
       return "首次下载语言包需要用户操作，请重新选择一次文本。";
@@ -291,9 +350,9 @@
       const speak = document.createElement("button");
       speak.className = "speak";
       speak.appendChild(createSpeakerIcon());
-      speak.title = "朗读英文";
-      speak.setAttribute("aria-label", "朗读英文");
-      speak.addEventListener("click", () => speakEnglish(speechText));
+      speak.title = "朗读原文";
+      speak.setAttribute("aria-label", "朗读原文");
+      speak.addEventListener("click", () => speakText(speechText, card.dataset.sourceLanguage || "en"));
       actions.appendChild(speak);
     }
     const close = document.createElement("button");
@@ -335,21 +394,45 @@
     return node;
   }
 
+  function headingWithSpeech(text, collocations, language) {
+    const row = document.createElement("div");
+    row.className = "title-row";
+    const speak = document.createElement("button");
+    speak.className = "speak";
+    speak.appendChild(createSpeakerIcon());
+    speak.title = "朗读原文";
+    speak.setAttribute("aria-label", "朗读原文");
+    speak.addEventListener("click", () => speakText(text, language));
+    row.append(highlightedHeading(text, collocations), speak);
+    return row;
+  }
+
   function escapeRegExp(text) {
     return text.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&");
   }
 
-  function speakEnglish(text) {
+  function speakText(text, language = "en") {
     if (!("speechSynthesis" in window)) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "en-US";
-    utterance.rate = text.includes(" ") ? 0.88 : 0.8;
+    const voiceLocales = { en: "en-US", fr: "fr-FR", de: "de-DE", ko: "ko-KR", es: "es-ES", ja: "ja-JP", it: "it-IT", pt: "pt-PT", ru: "ru-RU" };
+    utterance.lang = voiceLocales[language] ?? language;
+    const sentenceRates = { ko: 0.92, ja: 0.9, de: 0.9, fr: 0.92, en: 0.88 };
+    const wordRates = { ko: 0.82, ja: 0.82, de: 0.8, fr: 0.82, en: 0.8 };
+    utterance.rate = text.includes(" ") ? (sentenceRates[language] ?? 0.9) : (wordRates[language] ?? 0.82);
+    utterance.pitch = 1;
     const voices = window.speechSynthesis.getVoices();
-    utterance.voice = voices.find((voice) => voice.lang.toLocaleLowerCase().startsWith("en-us"))
-      ?? voices.find((voice) => voice.lang.toLocaleLowerCase().startsWith("en"))
-      ?? null;
+    const requestedLocale = utterance.lang.toLocaleLowerCase();
+    const matchingVoices = voices.filter((voice) => voice.lang.toLocaleLowerCase().startsWith(language));
+    utterance.voice = matchingVoices.sort((a, b) => voiceScore(b, requestedLocale, language) - voiceScore(a, requestedLocale, language))[0] ?? null;
     window.speechSynthesis.speak(utterance);
+  }
+
+  function voiceScore(voice, requestedLocale, language) {
+    const locale = voice.lang.toLocaleLowerCase();
+    const preferredNames = { ko: ["yuna"], ja: ["kyoko", "otoya"], de: ["anna"], fr: ["amelie", "thomas"], en: ["samantha", "alex"] };
+    const preferred = (preferredNames[language] || []).some((name) => voice.name.toLocaleLowerCase().includes(name));
+    return (locale === requestedLocale ? 100 : 0) + (preferred ? 60 : 0) + (voice.localService ? 20 : 0) + (voice.default ? 5 : 0);
   }
 
   function heading(text) {
