@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
-    "check": "node --check src/background/background.js && node --check src/content/content.js && node --check src/sidepanel/sidepanel.js && node --check src/popup/popup.js"
+    "check": "node --check src/background/background.js && node --check src/content/content.js && node --check src/sidepanel/sidepanel.js && node --check src/popup/popup.js && node --check platforms/stay/english-reader.user.js"
   },
   "engines": {
     "node": ">=20"
