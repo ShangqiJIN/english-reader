@@ -87,6 +87,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 async function handleSelection(payload, sender) {
+  const { extensionEnabled = true } = await chrome.storage.local.get("extensionEnabled");
+  if (!extensionEnabled) throw new Error("English Reader 已关闭。");
   const text = normalizeSelection(payload?.text);
   if (!text || text.length > 5000) throw new Error("请选择 1–5000 个字符的英文内容。");
 
@@ -106,6 +108,8 @@ async function handleSelection(payload, sender) {
 }
 
 async function analyzeWithDeepSeek(payload) {
+  const { extensionEnabled = true } = await chrome.storage.local.get("extensionEnabled");
+  if (!extensionEnabled) throw new Error("English Reader 已关闭。");
   if (!["sentence", "vocabulary"].includes(payload?.kind)) throw new Error("不支持的 DeepSeek 分析类型。 ");
   const { deepseekApiKey } = await chrome.storage.local.get("deepseekApiKey");
   if (!deepseekApiKey) throw new Error("请先在扩展按钮中填写 DeepSeek API Key。");

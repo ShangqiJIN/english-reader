@@ -45,17 +45,18 @@
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes.extensionEnabled) {
       extensionEnabled = changes.extensionEnabled.newValue !== false;
-      if (!extensionEnabled) hide();
+      if (!extensionEnabled) disableSelection();
+      else selectionArmed = true;
     }
   });
 
   document.addEventListener("mouseup", (event) => {
     selectingWithMouse = false;
-    if (event.composedPath().includes(host)) return;
+    if (!extensionEnabled || event.composedPath().includes(host)) return;
     scheduleSelection(0);
   });
   document.addEventListener("selectionchange", () => {
-    if (!selectionArmed || selectingWithMouse) return;
+    if (!extensionEnabled || !selectionArmed || selectingWithMouse) return;
     const selection = window.getSelection();
     if (isPopoverSelection(selection)) return;
     scheduleSelection(180);
@@ -82,7 +83,8 @@
     }
     if (message?.type === "set-extension-enabled") {
       extensionEnabled = message.enabled !== false;
-      if (!extensionEnabled) hide();
+      if (!extensionEnabled) disableSelection();
+      else selectionArmed = true;
       return false;
     }
     if (message?.type === "analyze-external-selection" && extensionEnabled) analyze(message.text, null, { before: [], after: [] });
@@ -91,6 +93,7 @@
 
   async function readSelection() {
     await settingsReady;
+    extensionEnabled = (await chrome.storage.local.get("extensionEnabled")).extensionEnabled !== false;
     if (!extensionEnabled || !selectionArmed) return;
     const selection = window.getSelection();
     if (isPopoverSelection(selection)) return;
@@ -103,6 +106,7 @@
 
   function scheduleSelection(delay) {
     window.clearTimeout(selectionTimer);
+    if (!extensionEnabled) return;
     selectionTimer = window.setTimeout(readSelection, delay);
   }
 
@@ -117,6 +121,11 @@
   }
 
   async function analyze(text, rect, wordWindow) {
+    extensionEnabled = (await chrome.storage.local.get("extensionEnabled")).extensionEnabled !== false;
+    if (!extensionEnabled) {
+      disableSelection();
+      return;
+    }
     const serial = ++requestSerial;
     position(rect);
     renderLoading(text);
@@ -627,5 +636,11 @@
   function hide() {
     requestSerial += 1;
     card.classList.add("hidden");
+  }
+
+  function disableSelection() {
+    window.clearTimeout(selectionTimer);
+    selectionArmed = false;
+    hide();
   }
 })();

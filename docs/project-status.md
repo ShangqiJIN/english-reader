@@ -1,7 +1,7 @@
 # English Reader stage summary
 
 Last reviewed: 2026-09-01  
-Chrome version: 0.7.6  
+Chrome version: 0.7.7  
 Project root: `/Volumes/T7/CodexProjects/english-reader`
 
 This file is the durable handoff for future conversations. Read it before changing the project.
@@ -28,7 +28,7 @@ English Reader is a reading-time learning tool. Selecting text on the current we
 - Speech uses browser/system voices; the speaker button follows the selected word or sentence.
 - The card is fixed to the browser viewport and repositions above/below the selection to remain visible.
 - One selection creates one request. Clicking outside closes/re-arms it; selecting text inside the card does not trigger another lookup.
-- The popup master switch disables mouse selection, keyboard selection, and context-menu analysis while leaving the learning library available.
+- The popup master switch is enforced before scheduling, before rendering, and again in the background. It disables mouse selection, keyboard selection, and context-menu analysis while leaving the learning library available.
 - Sentence chunks always remain verbatim excerpts from the original sentence. Chinese or paraphrased DeepSeek chunks are rejected and the local English chunks remain.
 
 ## Platform split
@@ -65,9 +65,9 @@ English Reader is a reading-time learning tool. Selecting text on the current we
 
 ## Current checkpoint
 
-- Local Chrome version is 0.7.6.
+- Local Chrome version is 0.7.7.
 - GitHub `main` contains v0.7.6. Future uploads still require the user's explicit request.
-- Version 0.7.6 rejects translated/paraphrased DeepSeek sentence chunks and adds a popup master switch for all webpage selection handling.
+- Version 0.7.7 hardens the popup master switch with fresh storage and background checks and cancels pending selections when disabled.
 - Run `node --test tests/*.test.mjs` after code changes.
 
 ## Reload and test checklist
