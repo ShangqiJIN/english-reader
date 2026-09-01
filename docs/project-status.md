@@ -66,7 +66,7 @@ English Reader is a reading-time learning tool. Selecting text on the current we
 ## Current checkpoint
 
 - Local Chrome version is 0.7.6.
-- GitHub is intentionally older (last known uploaded version: 0.4.1). Do not upload unless the user explicitly asks.
+- GitHub `main` contains v0.7.6. Future uploads still require the user's explicit request.
 - Version 0.7.6 rejects translated/paraphrased DeepSeek sentence chunks and adds a popup master switch for all webpage selection handling.
 - Run `node --test tests/*.test.mjs` after code changes.
 
