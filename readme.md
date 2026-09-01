@@ -8,13 +8,15 @@ English Reader is a reading-learning prototype with separate Chrome and Stay/Saf
 - Classify short selections as vocabulary and longer selections as sentences.
 - Save results to `chrome.storage.local`.
 - Browse saved vocabulary and sentences in the Chrome side panel.
-- Translate English to Simplified Chinese locally with Chrome's built-in Translator API when available.
+- Translate detected source languages to Simplified Chinese locally with Chrome's built-in Translator API when available.
+- Detect the selected language with Chrome's built-in Language Detector API before translating.
+- Translate supported languages such as English, French, German, and Korean into Simplified Chinese.
 - Read selected words, phrases, and sentences aloud with system voices.
 - Detect and highlight a packaged set of common English collocations.
 - Search, export, and selectively delete saved learning records.
 - Export a complete JSON backup or the current filtered view as CSV.
 
-Chrome 138 or later is required for built-in translation. The first translation may download an English-to-Chinese language pack. No selected webpage text is sent to a remote service.
+Chrome 138 or later is required for built-in language detection and translation. The first use of a language may download its translation language pack. No selected webpage text is sent to a remote service in the Chrome edition.
 
 ## Load locally
 
