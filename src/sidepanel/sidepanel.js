@@ -1,4 +1,4 @@
-import { createCsv, createLibraryJson } from "../shared/export.js";
+import { createCsv, createHtml } from "../shared/export.js";
 
 let library = { vocabulary: [], sentences: [] };
 let activeTab = "vocabulary";
@@ -35,14 +35,17 @@ document.querySelector("#select-all").addEventListener("click", () => {
   render();
 });
 
-document.querySelector("#export-json").addEventListener("click", () => {
-  downloadText(createLibraryJson(library), exportFilename("json"), "application/json");
-  setNotice("已生成完整 JSON 备份。");
+document.querySelector("#export-csv").addEventListener("click", () => {
+  const items = exportItems();
+  downloadText(createCsv(items), exportFilename("csv"), "text/csv;charset=utf-8");
+  setNotice(`已导出 ${items.length} 条 CSV 记录。`);
 });
 
-document.querySelector("#export-csv").addEventListener("click", () => {
-  downloadText(createCsv(visibleItems), exportFilename("csv"), "text/csv;charset=utf-8");
-  setNotice(`已导出当前显示的 ${visibleItems.length} 条记录。`);
+document.querySelector("#export-html").addEventListener("click", () => {
+  const title = activeTab === "sentences" ? "English Reader 句子库" : "English Reader 生词库";
+  const items = exportItems();
+  downloadText(createHtml(items, title), exportFilename("html"), "text/html;charset=utf-8");
+  setNotice(`已导出 ${items.length} 条 HTML 记录。`);
 });
 
 document.querySelector("#delete-selected").addEventListener("click", async () => {
@@ -139,10 +142,7 @@ function render() {
   }
 
   let renderedLanguage = "";
-  const groupedItems = [...visibleItems].sort((a, b) => {
-    const languageOrder = languageLabel(itemLanguage(a)).localeCompare(languageLabel(itemLanguage(b)), "zh-CN");
-    return languageOrder || String(b.createdAt).localeCompare(String(a.createdAt));
-  });
+  const groupedItems = orderedVisibleItems();
   groupedItems.forEach((item) => {
     const itemLanguageCode = itemLanguage(item);
     if (itemLanguageCode !== renderedLanguage) {
@@ -221,6 +221,18 @@ function render() {
   });
 }
 
+function orderedVisibleItems() {
+  return [...visibleItems].sort((a, b) => {
+    const languageOrder = languageLabel(itemLanguage(a)).localeCompare(languageLabel(itemLanguage(b)), "zh-CN");
+    return languageOrder || String(b.createdAt).localeCompare(String(a.createdAt));
+  });
+}
+
+function exportItems() {
+  const ordered = orderedVisibleItems();
+  return selectedIds.size ? ordered.filter((item) => selectedIds.has(item.id)) : ordered;
+}
+
 function partOfSpeechName(partOfSpeech) {
   const names = { preferred: "首选释义", contextPhrase: "语境短语", noun: "名词", verb: "动词", adjective: "形容词", adverb: "副词", pronoun: "代词", preposition: "介词", conjunction: "连词", interjection: "感叹词" };
   return names[partOfSpeech] ?? partOfSpeech;
@@ -236,6 +248,8 @@ function updateSelectionControls() {
   const deleteButton = document.querySelector("#delete-selected");
   deleteButton.disabled = selectedIds.size === 0;
   deleteButton.textContent = selectedIds.size ? `删除选中项（${selectedIds.size}）` : "删除选中项";
+  document.querySelector("#export-csv").textContent = selectedIds.size ? `导出选中 CSV（${selectedIds.size}）` : "导出当前 CSV";
+  document.querySelector("#export-html").textContent = selectedIds.size ? `导出选中 HTML（${selectedIds.size}）` : "导出当前 HTML";
 }
 
 function createSpeakerIcon() {

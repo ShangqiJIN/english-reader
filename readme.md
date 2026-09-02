@@ -18,7 +18,7 @@ English Reader is a reading-learning prototype with separate Chrome and Stay/Saf
 - Detect and highlight a packaged set of common English collocations.
 - Keep DeepSeek sentence chunks verbatim in the original language; only the overall translation is Chinese.
 - Search, export, and selectively delete saved learning records.
-- Export a complete JSON backup or the current filtered view as CSV.
+- Export checked records, or the current filtered view when nothing is checked, as standalone HTML or an indexed CSV with fixed expressions linked by `id`/`sub_id`.
 
 Chrome 138 or later is required for built-in language detection and translation. The first use of a language may download its translation language pack. Chrome translation stays on-device. Enabling DeepSeek sends selected vocabulary with its three-word windows, or selected sentences with nearby context, to DeepSeek.
 

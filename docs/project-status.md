@@ -1,7 +1,7 @@
 # English Reader stage summary
 
 Last reviewed: 2026-09-01  
-Chrome version: 0.7.7  
+Chrome version: 0.7.10  
 Project root: `/Volumes/T7/CodexProjects/english-reader`
 
 This file is the durable handoff for future conversations. Read it before changing the project.
@@ -12,7 +12,7 @@ English Reader is a reading-time learning tool. Selecting text on the current we
 
 - Vocabulary: Chinese meaning, optional IPA, numbered meanings, speech, and automatic saving.
 - Sentences: Chinese translation, grammatical chunks, fixed expressions, speech, and automatic saving.
-- Learning library: stored locally, grouped/filterable by detected language, searchable, speakable, exportable as JSON/CSV, and deletable singly or in batches.
+- Learning library: stored locally, grouped/filterable by detected language, searchable, speakable, exportable as CSV/HTML, and deletable singly or in batches.
 
 ## Confirmed behavior
 
@@ -65,9 +65,9 @@ English Reader is a reading-time learning tool. Selecting text on the current we
 
 ## Current checkpoint
 
-- Local Chrome version is 0.7.7.
-- GitHub `main` contains v0.7.6. Future uploads still require the user's explicit request.
-- Version 0.7.7 hardens the popup master switch with fresh storage and background checks and cancels pending selections when disabled.
+- Local Chrome version is 0.7.10.
+- GitHub `main` contains v0.7.7. Future uploads still require the user's explicit request.
+- Version 0.7.10 also removes any CSV column that is empty across the complete selected export.
 - Run `node --test tests/*.test.mjs` after code changes.
 
 ## Reload and test checklist
