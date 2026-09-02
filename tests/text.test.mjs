@@ -45,9 +45,16 @@ test("detects packaged collocations", () => {
   assert.deepEqual(
     detectCollocations("We need to take into account the risks in order to proceed."),
     [
-      { phrase: "in order to", meaningZh: "为了" },
-      { phrase: "take into account", meaningZh: "把……考虑在内" }
+      { phrase: "in order to", meaningZh: "为了", selected: true },
+      { phrase: "take into account", meaningZh: "把……考虑在内", selected: true }
     ]
+  );
+});
+
+test("detects a discontinuous not only but also construction", () => {
+  assert.deepEqual(
+    detectCollocations("She not only read the book but also reviewed it."),
+    [{ phrase: "not only … but also", meaningZh: "不仅……而且……", parts: ["not only", "but also"], selected: true }]
   );
 });
 

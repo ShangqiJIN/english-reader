@@ -19,6 +19,8 @@
     h2 strong { color: #17634d; text-decoration: underline; text-decoration-color: #a8cdbc; text-underline-offset: 3px; }
     h2 .collocation-mark { color: #184f3f; font-weight: 800; text-decoration: underline; text-decoration-color: #79a898; text-underline-offset: 3px; }
     .collocation-list strong { color: #184f3f; font-weight: 800; }
+    .collocation-option { display: flex; align-items: flex-start; gap: 7px; }
+    .collocation-option input { flex: 0 0 15px; width: 15px; height: 15px; margin: 3px 0 0; }
     p { margin: 7px 0; } ol { margin: 8px 0; padding-left: 22px; }
     button { border: 0; border-radius: 9px; padding: 7px 10px; background: #ebe5d7; color: #24221d; cursor: pointer; }
     button:hover { background: #ddd2bd; } .close, .speak { padding: 3px 8px; align-self: flex-start; }
@@ -158,8 +160,10 @@
         await enrichVocabularyWithDeepSeek(result, serial);
       }
       const saveResponse = await chrome.runtime.sendMessage({ type: "save-result", payload: result });
+      if (saveResponse?.result?.id) result.id = saveResponse.result.id;
       result.saved = Boolean(saveResponse?.ok);
       if (!result.saved) result.storageWarning = saveResponse?.error || "结果未能保存。";
+      if (result.kind === "sentence") await syncSentenceCollocations(result);
       if (serial === requestSerial) renderResult(result);
       if (translation.aiPromise) {
         result.aiStatus = "pending";
@@ -173,6 +177,9 @@
           result.providerWarning = "";
           const finalSave = await chrome.runtime.sendMessage({ type: "save-result", payload: result });
           result.saved = Boolean(finalSave?.ok);
+          if (result.kind === "sentence") {
+            await syncSentenceCollocations(result);
+          }
         } else {
           result.aiStatus = "failed";
           result.providerWarning = `${aiResponse.error} 已保留 Chrome 本地结果。`;
@@ -268,8 +275,12 @@
       ["with regard to", "关于"]
     ];
     const lowerText = text.toLocaleLowerCase("en-US");
-    return rules.filter(([phrase]) => lowerText.includes(phrase))
-      .map(([phrase, meaningZh]) => ({ phrase, meaningZh }));
+    const matches = rules.filter(([phrase]) => lowerText.includes(phrase))
+      .map(([phrase, meaningZh]) => ({ phrase, meaningZh, selected: true }));
+    if (/\bnot only\b[\s\S]*\bbut also\b/i.test(text)) {
+      matches.push({ phrase: "not only … but also", meaningZh: "不仅……而且……", parts: ["not only", "but also"], selected: true });
+    }
+    return matches;
   }
 
   function withTimeout(promise, milliseconds) {
@@ -466,11 +477,25 @@
         const title = paragraph("固定搭配", "label");
         const collocationList = document.createElement("ol");
         collocationList.className = "collocation-list";
-        result.collocations.forEach(({ phrase, meaningZh }) => {
+        result.collocations.forEach((collocation) => {
           const item = document.createElement("li");
+          const label = document.createElement("label");
+          label.className = "collocation-option";
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.checked = collocation.selected !== false;
+          checkbox.addEventListener("change", async () => {
+            collocation.selected = checkbox.checked;
+            const [sentenceSave, collocationSync] = await Promise.all([
+              chrome.runtime.sendMessage({ type: "save-result", payload: result }),
+              chrome.runtime.sendMessage({ type: "sync-sentence-collocations", payload: result })
+            ]);
+            if (!sentenceSave?.ok || !collocationSync?.ok) label.title = sentenceSave?.error || collocationSync?.error || "更新失败";
+          });
           const strong = document.createElement("strong");
-          strong.textContent = phrase;
-          item.append(strong, document.createTextNode(" — " + meaningZh));
+          strong.textContent = collocation.phrase;
+          label.append(checkbox, strong, document.createTextNode(" — " + collocation.meaningZh));
+          item.appendChild(label);
           collocationList.appendChild(item);
         });
         fragment.append(title, collocationList);
@@ -489,8 +514,13 @@
   }
 
   function partOfSpeechName(partOfSpeech) {
-    const names = { preferred: "首选释义", contextPhrase: "语境短语", noun: "名词", verb: "动词", adjective: "形容词", adverb: "副词", pronoun: "代词", preposition: "介词", conjunction: "连词", interjection: "感叹词" };
+    const names = { preferred: "首选释义", contextPhrase: "语境短语", phrase: "短语", noun: "名词", verb: "动词", adjective: "形容词", adverb: "副词", pronoun: "代词", preposition: "介词", conjunction: "连词", interjection: "感叹词" };
     return names[partOfSpeech] ?? partOfSpeech;
+  }
+
+  async function syncSentenceCollocations(result) {
+    const response = await chrome.runtime.sendMessage({ type: "sync-sentence-collocations", payload: result });
+    if (!response?.ok) result.storageWarning = response?.error || "固定搭配未能同步到生词库。";
   }
 
   function renderError(message) {
@@ -563,7 +593,7 @@
 
   function highlightedHeading(text, collocations) {
     const node = document.createElement("h2");
-    const phrases = collocations.map((item) => item.phrase).sort((a, b) => b.length - a.length);
+    const phrases = collocations.flatMap((item) => item.parts?.length ? item.parts : [item.phrase]).filter(Boolean).sort((a, b) => b.length - a.length);
     if (!phrases.length) {
       node.textContent = text;
       return node;

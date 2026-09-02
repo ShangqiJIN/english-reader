@@ -64,10 +64,15 @@ test("creates a standalone html view with escaped cards and collocations", () =>
     kind: "sentence",
     text: "A < B",
     translationZh: "A 小于 B",
-    collocations: [{ phrase: "pass by", meaningZh: "经过" }]
+    collocations: [{ phrase: "pass by", meaningZh: "经过" }],
+    source: { pageTitle: "Reading < Page", pageUrl: "https://example.com/story" }
   }], "句子库");
   assert.match(html, /<!doctype html>/);
   assert.match(html, /A &lt; B/);
   assert.match(html, /固定搭配/);
   assert.match(html, /pass by/);
+  assert.match(html, /id="toggle">隐藏翻译/);
+  assert.match(html, /translations-hidden/);
+  assert.match(html, /href="https:\/\/example\.com\/story"/);
+  assert.match(html, /Reading &lt; Page/);
 });

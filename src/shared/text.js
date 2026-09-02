@@ -24,7 +24,6 @@ const collocationRules = [
   ["plastered onto", "贴满；贴在……上"],
   ["lead to", "导致"],
   ["make use of", "利用"],
-  ["not only", "不仅"],
   ["rather than", "而不是"],
   ["refer to", "指的是；提到"],
   ["result in", "导致"],
@@ -77,7 +76,6 @@ export function createSentenceResult(text) {
     structureSummary: "",
     clauses: [],
     collocations: detectCollocations(normalized),
-    learningVocabulary: [],
     difficultyNotes: [],
     analysisStatus: "complete",
     createdAt: new Date().toISOString()
@@ -132,7 +130,11 @@ export function rankMeaningsByContext(meanings, window) {
 
 export function detectCollocations(text) {
   const lowerText = normalizeSelection(text).toLocaleLowerCase("en-US");
-  return collocationRules
+  const matches = collocationRules
     .filter(([phrase]) => lowerText.includes(phrase))
-    .map(([phrase, meaningZh]) => ({ phrase, meaningZh }));
+    .map(([phrase, meaningZh]) => ({ phrase, meaningZh, selected: true }));
+  if (/\bnot only\b[\s\S]*\bbut also\b/i.test(text)) {
+    matches.push({ phrase: "not only … but also", meaningZh: "不仅……而且……", parts: ["not only", "but also"], selected: true });
+  }
+  return matches;
 }

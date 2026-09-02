@@ -5,6 +5,7 @@ let activeTab = "vocabulary";
 let searchQuery = "";
 let activeLanguage = "all";
 let visibleItems = [];
+let translationsVisible = true;
 const selectedIds = new Set();
 const languageNames = { en: "英语", fr: "法语", de: "德语", ko: "韩语", es: "西班牙语", ja: "日语", it: "意大利语", pt: "葡萄牙语", ru: "俄语" };
 
@@ -33,6 +34,12 @@ document.querySelector("#select-all").addEventListener("click", () => {
   const allSelected = visibleItems.length > 0 && visibleItems.every((item) => selectedIds.has(item.id));
   visibleItems.forEach((item) => allSelected ? selectedIds.delete(item.id) : selectedIds.add(item.id));
   render();
+});
+
+document.querySelector("#toggle-translations").addEventListener("click", () => {
+  translationsVisible = !translationsVisible;
+  document.querySelector("#list").classList.toggle("translations-hidden", !translationsVisible);
+  document.querySelector("#toggle-translations").textContent = translationsVisible ? "隐藏翻译" : "显示翻译";
 });
 
 document.querySelector("#export-csv").addEventListener("click", () => {
@@ -178,6 +185,7 @@ function render() {
     speak.addEventListener("click", () => speakText(item.text, item.sourceLanguage || "en"));
     head.append(selection, speak);
     const detail = document.createElement("p");
+    detail.className = "translation";
     detail.textContent = item.kind === "sentence" ? item.translationZh : item.chineseDefinition;
     article.append(head, detail);
     if (item.ipa) {
@@ -189,7 +197,7 @@ function render() {
     if (item.meanings?.length) {
       detail.remove();
       const meanings = document.createElement("ol");
-      meanings.className = "meanings";
+      meanings.className = "meanings translation";
       item.meanings.forEach((meaning) => {
         const row = document.createElement("li");
         const part = document.createElement("strong");
@@ -206,7 +214,10 @@ function render() {
         const row = document.createElement("li");
         const strong = document.createElement("strong");
         strong.textContent = phrase;
-        row.append(strong, document.createTextNode(" — " + meaningZh));
+        const translation = document.createElement("span");
+        translation.className = "translation";
+        translation.textContent = " — " + meaningZh;
+        row.append(strong, translation);
         collocations.appendChild(row);
       });
       article.appendChild(collocations);
@@ -215,7 +226,21 @@ function render() {
     meta.className = "meta";
     const date = item.createdAt ? new Date(item.createdAt).toLocaleString("zh-CN") : "时间未知";
     const language = languageLabel(itemLanguage(item));
-    meta.textContent = [language, item.source?.pageTitle, date].filter(Boolean).join(" · ");
+    meta.append(document.createTextNode(language));
+    if (item.source?.pageTitle) {
+      meta.append(document.createTextNode(" · "));
+      if (/^https?:\/\//.test(item.source?.pageUrl ?? "")) {
+        const source = document.createElement("a");
+        source.href = item.source.pageUrl;
+        source.target = "_blank";
+        source.rel = "noopener noreferrer";
+        source.textContent = item.source.pageTitle;
+        meta.appendChild(source);
+      } else {
+        meta.append(document.createTextNode(item.source.pageTitle));
+      }
+    }
+    if (date) meta.append(document.createTextNode(` · ${date}`));
     article.appendChild(meta);
     list.appendChild(article);
   });
@@ -234,7 +259,7 @@ function exportItems() {
 }
 
 function partOfSpeechName(partOfSpeech) {
-  const names = { preferred: "首选释义", contextPhrase: "语境短语", noun: "名词", verb: "动词", adjective: "形容词", adverb: "副词", pronoun: "代词", preposition: "介词", conjunction: "连词", interjection: "感叹词" };
+  const names = { preferred: "首选释义", contextPhrase: "语境短语", phrase: "短语", noun: "名词", verb: "动词", adjective: "形容词", adverb: "副词", pronoun: "代词", preposition: "介词", conjunction: "连词", interjection: "感叹词" };
   return names[partOfSpeech] ?? partOfSpeech;
 }
 

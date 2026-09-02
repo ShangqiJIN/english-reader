@@ -14,8 +14,10 @@ input { width: 100%; min-width: 0; }
 select { max-width: 124px; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 16px 2px; }
 .toolbar button { padding: 6px 9px; border-radius: 8px; font-size: 11px; }
+.toolbar .push-right { margin-left: auto; }
 .toolbar .danger { background: #8d3b32; color: white; }
 .toolbar button:disabled { cursor: not-allowed; opacity: .45; }
+.translations-hidden .translation { display: none; }
 .notice { min-height: 17px; margin: 2px 16px; color: #347453; font-size: 11px; }
 main { display: grid; gap: 10px; padding: 10px 16px 28px; }
 .language-group { margin: 8px 2px -2px; color: #355f50; font-size: 13px; font-weight: 800; letter-spacing: .04em; }
@@ -26,6 +28,7 @@ main { display: grid; gap: 10px; padding: 10px 16px 28px; }
 .item h2 { margin: 0 0 7px; font-size: 16px; overflow-wrap: anywhere; }
 .item p { margin: 5px 0; color: #625d53; font-size: 13px; }
 .item .meta { color: #938b7d; font-size: 11px; }
+.item .meta a { color: #5b786e; text-decoration: underline; text-underline-offset: 2px; }
 .item .ipa { color: #355f50; font-family: Georgia, serif; }
 .item .meanings { margin: 7px 0; padding-left: 24px; color: #625d53; font-size: 13px; }
 .item .meanings li { margin: 4px 0; }
