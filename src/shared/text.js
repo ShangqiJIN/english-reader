@@ -58,7 +58,7 @@ export function createVocabularyResult(text) {
     partOfSpeech: isPhrase ? "phrase" : "unknown",
     chineseDefinition: "正在等待 Chrome 本地翻译…",
     englishDefinition: "",
-    phraseMeaning: isPhrase ? "待分析短语整体含义" : "",
+    phraseMeaning: "",
     createdAt: new Date().toISOString()
   };
 }
@@ -96,6 +96,21 @@ export function keepVerbatimSegments(text, segments) {
   const source = normalizeSelection(text).toLocaleLowerCase();
   const candidates = Array.isArray(segments) ? segments.map(normalizeSelection).filter(Boolean).slice(0, 12) : [];
   return candidates.length && candidates.every((segment) => source.includes(segment.toLocaleLowerCase())) ? candidates : [];
+}
+
+export function keepVerbatimCollocations(text, collocations) {
+  const source = normalizeSelection(text).toLocaleLowerCase();
+  return (Array.isArray(collocations) ? collocations : []).filter((item) => {
+    const parts = item?.parts?.length ? item.parts : [item?.phrase];
+    let offset = 0;
+    return parts.every((part) => {
+      const value = normalizeSelection(part).toLocaleLowerCase();
+      const index = value ? source.indexOf(value, offset) : -1;
+      if (index < 0) return false;
+      offset = index + value.length;
+      return true;
+    });
+  });
 }
 
 export function extractWordWindow(fullText, selectedText, occurrence = 0) {

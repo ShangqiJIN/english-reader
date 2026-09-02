@@ -1,7 +1,7 @@
 # English Reader stage summary
 
-Last reviewed: 2026-09-01  
-Chrome version: 0.7.14  
+Last reviewed: 2026-09-02  
+Chrome version: 0.7.15  
 Project root: `/Volumes/T7/CodexProjects/english-reader`
 
 This file is the durable handoff for future conversations. Read it before changing the project.
@@ -22,6 +22,8 @@ English Reader is a reading-time learning tool. Selecting text on the current we
 - Chrome plus DeepSeek mode enhances vocabulary, short phrases, and sentences. There are no runtime dictionary requests.
 - English word ranking uses exactly the three words before and after the selection and stops at sentence punctuation.
 - Vocabulary shows at most two distinct, context-ranked meanings. The first is the preferred contextual meaning.
+- Selected phrases show one contextual whole-phrase meaning rather than individual word senses.
+- DeepSeek runs without high-effort thinking for lower latency; sentence chunks remain clause-sized and hallucinated collocations are discarded.
 - DeepSeek is optional. One provider selector enables it consistently for vocabulary, short phrases, and sentences.
 - DeepSeek sentence mode uses Chrome as the immediate preview when available, then replaces/enhances it with DeepSeek translation, chunks, and fixed expressions.
 - Fixed expressions are shown as dark-green text, not a colored background.

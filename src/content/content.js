@@ -210,13 +210,22 @@
     }), 30000).catch((error) => ({ ok: false, error: error.message }));
     if (serial !== requestSerial) return;
     if (response?.ok && response.result?.meanings?.length) {
-      result.meanings = response.result.meanings.slice(0, 2);
+      if (result.entryType === "phrase") {
+        result.chineseDefinition = response.result.meanings[0].definitionZh;
+        result.meanings = [];
+      } else {
+        result.meanings = response.result.meanings.slice(0, 2);
+      }
       result.aiStatus = "complete";
       result.translationProvider = "chrome+deepseek";
     } else {
-      result.meanings = [{ partOfSpeech: "preferred", definitionZh: result.chineseDefinition }];
+      result.meanings = result.entryType === "phrase"
+        ? []
+        : [{ partOfSpeech: "preferred", definitionZh: result.chineseDefinition }];
       result.aiStatus = "failed";
-      result.providerWarning = `${response?.error || "DeepSeek 没有返回词义。"} 已保留 Chrome 本地首选释义。`;
+      result.providerWarning = result.entryType === "phrase"
+        ? `${response?.error || "DeepSeek 没有返回短语含义。"} 已保留 Chrome 本地短语翻译。`
+        : `${response?.error || "DeepSeek 没有返回词义。"} 已保留 Chrome 本地首选释义。`;
     }
     renderResult(result);
   }
@@ -243,7 +252,7 @@
         entryType: words.length > 1 ? "phrase" : "word",
         chineseDefinition: "正在等待 Chrome 本地翻译…",
         englishDefinition: "",
-        phraseMeaning: words.length > 1 ? "正在分析短语整体含义…" : "",
+        phraseMeaning: "",
         createdAt: new Date().toISOString()
       };
     }

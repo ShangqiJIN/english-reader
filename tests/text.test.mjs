@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { classifySelection, detectCollocations, extractWordWindow, keepVerbatimSegments, normalizeSelection, rankMeaningsByContext, segmentSentence } from "../src/shared/text.js";
+import { classifySelection, createVocabularyResult, detectCollocations, extractWordWindow, keepVerbatimCollocations, keepVerbatimSegments, normalizeSelection, rankMeaningsByContext, segmentSentence } from "../src/shared/text.js";
 
 test("normalizes repeated whitespace", () => {
   assert.equal(normalizeSelection("  difficult\n  sentence "), "difficult sentence");
@@ -36,6 +36,12 @@ test("classifies a word and phrase as vocabulary", () => {
   assert.equal(classifySelection("in light of"), "vocabulary");
 });
 
+test("does not attach a pending single-word definition to phrases", () => {
+  const result = createVocabularyResult("darting rapidly");
+  assert.equal(result.entryType, "phrase");
+  assert.equal(result.phraseMeaning, "");
+});
+
 test("classifies a complete sentence", () => {
   assert.equal(classifySelection("Although it was raining, they continued their journey."), "sentence");
   assert.equal(classifySelection("They walked right out without looking"), "sentence");
@@ -62,4 +68,15 @@ test("keeps only complete verbatim sentence segments", () => {
   const text = "He passed by his own face, plastered upon a billboard.";
   assert.deepEqual(keepVerbatimSegments(text, ["He passed by his own face,", "plastered upon a billboard."]), ["He passed by his own face,", "plastered upon a billboard."]);
   assert.deepEqual(keepVerbatimSegments(text, ["他经过了自己的脸", "贴在广告牌上"]), []);
+});
+
+test("rejects hallucinated collocations and keeps verbatim ones", () => {
+  const text = "It went to outlets that paid a buck for fake tips.";
+  assert.deepEqual(
+    keepVerbatimCollocations(text, [
+      { phrase: "not only ... but also", meaningZh: "不仅……而且……" },
+      { phrase: "paid a buck for", meaningZh: "花一美元购买" }
+    ]),
+    [{ phrase: "paid a buck for", meaningZh: "花一美元购买" }]
+  );
 });
