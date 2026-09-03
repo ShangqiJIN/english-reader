@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Poke Poke for Stay
 // @namespace    https://github.com/ShangqiJIN/poke-poke
-// @version      0.3.8
+// @version      0.3.9
 // @description  Select English text in Safari to translate, listen, and save it locally.
 // @author       ShangqiJIN
 // @match        http://*/*
@@ -68,7 +68,7 @@
   const controls = document.createElement("section");
   controls.className = "controls hidden";
   const fab = document.createElement("button");
-  fab.className = "fab"; fab.type = "button"; fab.textContent = "戳"; fab.setAttribute("aria-label", "Poke Poke 菜单");
+  fab.className = "fab"; fab.type = "button"; fab.textContent = "P"; fab.setAttribute("aria-label", "Poke Poke 菜单");
   shadow.append(style, card, libraryPanel, controls, fab);
   document.documentElement.appendChild(host);
 
