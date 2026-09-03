@@ -28,7 +28,7 @@ export function createCsv(items) {
   return [headers, ...rows].map((row) => keptColumns.map((index) => escapeCsvCell(row[index])).join(",")).join("\n");
 }
 
-export function createHtml(items, title = "English Reader 学习库") {
+export function createHtml(items, title = "Poke Poke 学习库") {
   const languageNames = { en: "英语", fr: "法语", de: "德语", ko: "韩语", es: "西班牙语", ja: "日语", it: "意大利语", pt: "葡萄牙语", ru: "俄语" };
   const cards = items.map((item) => {
     const language = languageNames[item.sourceLanguage] ?? item.sourceLanguage ?? "英语";
