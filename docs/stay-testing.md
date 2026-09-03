@@ -11,7 +11,7 @@
 
 The card should appear near the bottom of the screen. The first result depends on network access to Google. The selected text is sent to Google Web Translation.
 
-Stay 0.3.8 is intentionally English-to-Chinese only. Tap the green **戳** floating button to use the master switch, choose Google or DeepSeek, and open the learning library. The DeepSeek key control appears only in DeepSeek mode and tests the connection when the key is saved.
+Stay 0.3.9 is intentionally English-to-Chinese only. Tap the green **P** floating button to use the master switch, choose Google or DeepSeek, and open the learning library. The DeepSeek key control appears only in DeepSeek mode and tests the connection when the key is saved.
 
 ## Learning library
 
