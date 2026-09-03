@@ -11,11 +11,11 @@
 
 The card should appear near the bottom of the screen. The first result depends on network access to Google. The selected text is sent to Google Web Translation.
 
-Stay 0.3.0 is intentionally English-to-Chinese only. Tap the green **ER** floating button to open the extension controls, including the master switch, learning library, and DeepSeek key setting. The key and learning records remain in Stay's local userscript storage. Google translation automatically retries through a second Google host when the first route is unavailable.
+Stay 0.3.8 is intentionally English-to-Chinese only. Tap the green **戳** floating button to use the master switch, choose Google or DeepSeek, and open the learning library. The DeepSeek key control appears only in DeepSeek mode and tests the connection when the key is saved.
 
 ## Learning library
 
-Open Stay's script menu for the current page and choose **English Reader：打开学习库**. The library supports search, translation visibility, selection/batch deletion, and JSON/CSV/HTML export. JSON can also be imported from the script menu. There is no account or cross-device sync.
+Open Stay's script menu for the current page and choose **Poke Poke：打开学习库**. The library supports search, translation visibility, selection/batch deletion, and JSON/CSV/HTML export. JSON can also be imported from the script menu. There is no account or cross-device sync.
 
 ## Recommended checks
 

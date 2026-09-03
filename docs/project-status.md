@@ -1,14 +1,14 @@
-# English Reader stage summary
+# Poke Poke stage summary
 
-Last reviewed: 2026-09-02  
-Chrome version: 0.7.15  
+Last reviewed: 2026-09-02
+Chrome version: 0.7.15
 Project root: `/Volumes/T7/CodexProjects/english-reader`
 
 This file is the durable handoff for future conversations. Read it before changing the project.
 
 ## Product
 
-English Reader is a reading-time learning tool. Selecting text on the current webpage opens an in-page card so the user can understand and save it without leaving the page.
+Poke Poke is a reading-time learning tool. Selecting text on the current webpage opens an in-page card so the user can understand and save it without leaving the page.
 
 - Vocabulary: Chinese meaning, optional IPA, numbered meanings, speech, and automatic saving.
 - Sentences: Chinese translation, grammatical chunks, fixed expressions, speech, and automatic saving.
@@ -77,7 +77,7 @@ English Reader is a reading-time learning tool. Selecting text on the current we
 
 ## Reload and test checklist
 
-1. Open `chrome://extensions` and reload English Reader.
+1. Open `chrome://extensions` and reload Poke Poke.
 2. Refresh every webpage used for testing; an already-open page keeps the old content script.
 3. Open the extension popup and confirm its version matches the content-script version.
 4. Confirm Chrome Translator availability in the popup.
