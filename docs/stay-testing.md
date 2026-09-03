@@ -11,7 +11,7 @@
 
 The card should appear near the bottom of the screen. The first result depends on network access to Google. The selected text is sent to Google Web Translation.
 
-Stay 0.2.1 is intentionally English-to-Chinese only. From Stay's script menu you can optionally add your own DeepSeek key for contextual meanings, sentence chunks, and fixed expressions. The key and learning records remain in Stay's local userscript storage. Google translation automatically retries through a second Google host when the first route is unavailable.
+Stay 0.3.0 is intentionally English-to-Chinese only. Tap the green **ER** floating button to open the extension controls, including the master switch, learning library, and DeepSeek key setting. The key and learning records remain in Stay's local userscript storage. Google translation automatically retries through a second Google host when the first route is unavailable.
 
 ## Learning library
 

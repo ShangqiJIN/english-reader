@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         English Reader for Stay
 // @namespace    https://github.com/ShangqiJIN/english-reader
-// @version      0.2.1
+// @version      0.3.0
 // @description  Select English text in Safari to translate, listen, and save it locally.
 // @author       ShangqiJIN
 // @match        http://*/*
@@ -42,30 +42,37 @@
   const style = document.createElement("style");
   style.textContent = `
     :host { all: initial; }
-    .card { position: fixed; z-index: 2147483647; left: 10px; right: 10px; bottom: max(10px, env(safe-area-inset-bottom));
-      max-height: min(52vh, 420px); overflow: auto; box-sizing: border-box; padding: 12px;
+    .card { position: fixed; z-index: 2147483647; width: min(300px, calc(100vw - 24px)); right: 12px; bottom: max(10px, env(safe-area-inset-bottom));
+      max-height: min(44vh, 360px); overflow: auto; box-sizing: border-box; padding: 10px;
       border: 1px solid #d7d4ca; border-radius: 14px; background: #fffdf7; color: #24221d;
-      box-shadow: 0 10px 32px rgba(37,31,19,.22); font: 13px/1.45 -apple-system, BlinkMacSystemFont, sans-serif; }
+      box-shadow: 0 10px 32px rgba(37,31,19,.22); font: 12px/1.4 -apple-system, BlinkMacSystemFont, sans-serif; }
     .hidden { display: none; } .top { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
     .actions { display:flex; gap:5px; } .label { color:#796e5b; font-size:11px; font-weight:700; letter-spacing:.06em; }
-    h2 { margin:5px 0 7px; font-size:18px; line-height:1.3; overflow-wrap:anywhere; }
+    h2 { margin:4px 0 6px; font-size:16px; line-height:1.25; overflow-wrap:anywhere; }
     h2 strong { color:#17634d; text-decoration:underline; text-decoration-color:#a8cdbc; text-underline-offset:3px; }
     p { margin:5px 0; } ol { margin:6px 0; padding-left:21px; }
-    button { min-width:34px; min-height:31px; border:0; border-radius:9px; padding:5px 8px; background:#ebe5d7; color:#24221d; font-size:14px; }
-    .speaker { width:18px; height:18px; display:block; fill:#5d5a53; } .muted { color:#716a5e; font-size:11px; }
-    .saved { color:#347453; font-size:11px; font-weight:700; } .error { color:#8d3b32; }
-    .library { position:fixed; z-index:2147483647; inset:0; overflow:auto; box-sizing:border-box; padding:12px 10px max(24px,env(safe-area-inset-bottom)); background:#f6f2e8; color:#24221d; font:13px/1.45 -apple-system,BlinkMacSystemFont,sans-serif; }
+    button { min-width:30px; min-height:28px; border:0; border-radius:8px; padding:4px 7px; background:#ebe5d7; color:#24221d; font-size:12px; }
+    .speaker { width:16px; height:16px; display:block; fill:#5d5a53; } .muted { color:#716a5e; font-size:10px; }
+    .saved { color:#347453; font-size:10px; font-weight:700; } .error { color:#8d3b32; }
+    .library { position:fixed; z-index:2147483647; inset:0; overflow:auto; box-sizing:border-box; padding:10px 8px max(20px,env(safe-area-inset-bottom)); background:#f6f2e8; color:#24221d; font:12px/1.4 -apple-system,BlinkMacSystemFont,sans-serif; }
     .library header { display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; background:#f6f2e8; padding:8px 0; }
     .library article { background:#fffdf7; border:1px solid #ddd6c7; border-radius:11px; margin:7px 0; padding:10px; }
-    .library article h3 { margin:0 0 4px; font-size:14px; } .library .row { display:flex; gap:5px; flex-wrap:wrap; }
+    .library article h3 { margin:0 0 4px; font-size:13px; } .library .row { display:flex; gap:5px; flex-wrap:wrap; }
     .library input[type="search"] { width:100%; padding:10px; border:1px solid #ccc3b4; border-radius:10px; font-size:16px; }
     .translations-hidden .translation { display:none; }
+    .fab { position:fixed; z-index:2147483646; left:10px; bottom:max(86px,calc(env(safe-area-inset-bottom) + 56px)); width:38px; height:38px; min-width:38px; padding:0; border-radius:50%; background:#17634d; color:white; box-shadow:0 5px 16px rgba(0,0,0,.24); font:bold 11px/38px -apple-system,BlinkMacSystemFont,sans-serif; }
+    .controls { position:fixed; z-index:2147483647; left:10px; bottom:max(132px,calc(env(safe-area-inset-bottom) + 102px)); width:190px; box-sizing:border-box; padding:10px; border:1px solid #d7d4ca; border-radius:12px; background:#fffdf7; color:#24221d; box-shadow:0 8px 26px rgba(37,31,19,.22); font:12px/1.4 -apple-system,BlinkMacSystemFont,sans-serif; }
+    .controls strong { display:block; margin-bottom:7px; } .controls .row { display:flex; flex-wrap:wrap; gap:5px; }
   `;
   const card = document.createElement("section");
   card.className = "card hidden";
   const libraryPanel = document.createElement("section");
   libraryPanel.className = "library hidden";
-  shadow.append(style, card, libraryPanel);
+  const controls = document.createElement("section");
+  controls.className = "controls hidden";
+  const fab = document.createElement("button");
+  fab.className = "fab"; fab.type = "button"; fab.textContent = "ER"; fab.setAttribute("aria-label", "English Reader 菜单");
+  shadow.append(style, card, libraryPanel, controls, fab);
   document.documentElement.appendChild(host);
 
   let armed = true;
@@ -73,7 +80,8 @@
   let serial = 0;
   let enabled = true;
 
-  Promise.resolve(GM_getValue(settingsKey, {})).then((settings) => { enabled = settings.enabled !== false; });
+  Promise.resolve(GM_getValue(settingsKey, {})).then((settings) => { enabled = settings.enabled !== false; renderControls(); });
+  fab.addEventListener("click", () => { controls.classList.toggle("hidden"); if (!controls.classList.contains("hidden")) renderControls(); });
 
   document.addEventListener("pointerdown", (event) => {
     if (event.composedPath().includes(host)) return;
@@ -251,13 +259,27 @@
     if (value === null) return;
     await Promise.resolve(GM_setValue(settingsKey, { ...settings, deepseekApiKey: value.trim() }));
     window.alert(value.trim() ? "DeepSeek 增强已开启。" : "DeepSeek 增强已关闭。");
+    renderControls();
   }
 
   async function toggleEnabled() {
     enabled = !enabled;
     const settings = await Promise.resolve(GM_getValue(settingsKey, {}));
     await Promise.resolve(GM_setValue(settingsKey, { ...settings, enabled }));
-    hideCard(); window.alert(`English Reader 已${enabled ? "开启" : "关闭"}。`);
+    hideCard(); renderControls();
+  }
+
+  async function renderControls() {
+    const settings = await Promise.resolve(GM_getValue(settingsKey, {}));
+    const title = document.createElement("strong"); title.textContent = `English Reader · ${enabled ? "已开启" : "已关闭"}`;
+    const row = document.createElement("div"); row.className = "row";
+    row.append(
+      button(enabled ? "关闭插件" : "开启插件", toggleEnabled),
+      button(settings.deepseekApiKey ? "更换 AI Key" : "设置 AI Key", configureDeepSeek),
+      button("学习库", () => { controls.classList.add("hidden"); openLibrary(); }),
+      button("收起", () => controls.classList.add("hidden"))
+    );
+    controls.replaceChildren(title, row);
   }
 
   function detectCollocations(text) {
@@ -356,7 +378,8 @@
     const selected = new Set();
     const removeSelected = button("删除选中", async () => { if (!selected.size || !confirm(`删除 ${selected.size} 条记录？`)) return; for (const id of selected) await deleteResult(id); openLibrary(); });
     const headerNode = document.createElement("header");
-    const actions = document.createElement("div"); actions.className = "row"; actions.append(exportButton, csvButton, htmlButton, toggle, removeSelected, close);
+    const aiButton = button("AI 设置", configureDeepSeek);
+    const actions = document.createElement("div"); actions.className = "row"; actions.append(aiButton, exportButton, csvButton, htmlButton, toggle, removeSelected, close);
     headerNode.append(title, actions);
     const search = document.createElement("input"); search.type = "search"; search.placeholder = "搜索词语、句子或翻译";
     const fragment = document.createDocumentFragment(); fragment.append(headerNode, search);
@@ -428,7 +451,7 @@
     const row = document.createElement("div"); row.className = "top";
     const title = document.createElement("span"); title.className = "label"; title.textContent = label;
     const actions = document.createElement("div"); actions.className = "actions";
-    actions.append(button("朗读", () => speak(speechText), true), button("×", hideCard));
+    actions.append(button("AI 设置", configureDeepSeek), button("朗读", () => speak(speechText), true), button("×", hideCard));
     row.append(title, actions); return row;
   }
 
