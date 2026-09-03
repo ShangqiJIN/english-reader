@@ -11,9 +11,11 @@
 
 The card should appear near the bottom of the screen. The first result depends on network access to Google. The selected text is sent to Google Web Translation.
 
+Stay 0.2 is intentionally English-to-Chinese only. From Stay's script menu you can optionally add your own DeepSeek key for contextual meanings, sentence chunks, and fixed expressions. The key and learning records remain in Stay's local userscript storage.
+
 ## Learning library
 
-Open Stay's script menu for the current page and choose **English Reader：打开学习库**. The same menu includes JSON export. Each entry also has a delete button.
+Open Stay's script menu for the current page and choose **English Reader：打开学习库**. The library supports search, translation visibility, selection/batch deletion, and JSON/CSV/HTML export. JSON can also be imported from the script menu. There is no account or cross-device sync.
 
 ## Recommended checks
 

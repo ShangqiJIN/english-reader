@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         English Reader for Stay
 // @namespace    https://github.com/ShangqiJIN/english-reader
-// @version      0.1.0
+// @version      0.2.0
 // @description  Select English text in Safari to translate, listen, and save it locally.
 // @author       ShangqiJIN
 // @match        http://*/*
@@ -11,6 +11,7 @@
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
 // @connect      translate.googleapis.com
+// @connect      api.deepseek.com
 // @run-at       document-idle
 // @license      MIT
 // ==/UserScript==
@@ -19,6 +20,7 @@
   "use strict";
 
   const storageKey = "english-reader-library-v1";
+  const settingsKey = "english-reader-settings-v1";
   const maxEntries = 1000;
   const selectionLimit = 5000;
   const collocationRules = [
@@ -55,6 +57,8 @@
     .library header { display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; background:#f6f2e8; padding:8px 0; }
     .library article { background:#fffdf7; border:1px solid #ddd6c7; border-radius:14px; margin:10px 0; padding:13px; }
     .library article h3 { margin:0 0 5px; font-size:17px; } .library .row { display:flex; gap:8px; flex-wrap:wrap; }
+    .library input[type="search"] { width:100%; padding:10px; border:1px solid #ccc3b4; border-radius:10px; font-size:16px; }
+    .translations-hidden .translation { display:none; }
   `;
   const card = document.createElement("section");
   card.className = "card hidden";
@@ -66,6 +70,9 @@
   let armed = true;
   let timer = 0;
   let serial = 0;
+  let enabled = true;
+
+  Promise.resolve(GM_getValue(settingsKey, {})).then((settings) => { enabled = settings.enabled !== false; });
 
   document.addEventListener("pointerdown", (event) => {
     if (event.composedPath().includes(host)) return;
@@ -83,7 +90,10 @@
 
   if (typeof GM_registerMenuCommand === "function") {
     GM_registerMenuCommand("English Reader：打开学习库", openLibrary);
-    GM_registerMenuCommand("English Reader：导出学习库", exportLibrary);
+    GM_registerMenuCommand("English Reader：导出 JSON", exportLibrary);
+    GM_registerMenuCommand("English Reader：导入 JSON", importLibrary);
+    GM_registerMenuCommand("English Reader：设置 DeepSeek", configureDeepSeek);
+    GM_registerMenuCommand("English Reader：开关", toggleEnabled);
   }
 
   function schedule(delay) {
@@ -92,31 +102,71 @@
   }
 
   function readSelection() {
-    if (!armed) return;
+    if (!armed || !enabled) return;
     const selection = window.getSelection();
     const text = normalize(selection?.toString());
     if (!text || text.length > selectionLimit || selectionInsideUi(selection)) return;
     armed = false;
-    analyze(text);
+    analyze(text, getWordWindow(selection.getRangeAt(0)));
   }
 
   function selectionInsideUi(selection) {
     return [selection?.anchorNode, selection?.focusNode].some((node) => node?.getRootNode?.() === shadow);
   }
 
-  async function analyze(text) {
+  async function analyze(text, wordWindow) {
     const current = ++serial;
     renderLoading(text);
     try {
       const translation = await googleTranslate(text, "en", "zh-CN");
       if (current !== serial) return;
       const result = createResult(text, translation);
+      result.wordWindow = wordWindow;
       await saveResult(result);
+      if (result.kind === "sentence") await syncCollocations(result);
       renderResult(result);
+      const settings = await Promise.resolve(GM_getValue(settingsKey, {}));
+      if (settings.deepseekApiKey) enhanceWithDeepSeek(result, settings.deepseekApiKey, current);
     } catch (error) {
       if (current !== serial) return;
       renderError(text, error?.message || "翻译请求失败，请稍后重试。");
     }
+  }
+
+  async function enhanceWithDeepSeek(result, apiKey, current) {
+    try {
+      const sentence = result.kind === "sentence";
+      const context = [...(result.wordWindow?.before || []), result.text, ...(result.wordWindow?.after || [])].join(" ");
+      const prompt = sentence
+        ? 'Return JSON {"translationZh":"中文翻译","segments":["verbatim English clause"],"collocations":[{"phrase":"verbatim fixed expression","meaningZh":"中文含义"}]}. Use 2–4 complete clauses; do not split lists or short phrases. Include only established expressions present verbatim in the sentence.'
+        : result.entryType === "phrase"
+          ? 'Return JSON {"meanings":[{"partOfSpeech":"phrase","definitionZh":"完整短语在上下文中的中文含义"}]}. Explain the complete phrase, not individual words.'
+          : 'Return JSON {"meanings":[{"partOfSpeech":"词性","definitionZh":"语境中最贴切的中文义"}]}. Return at most two distinct ordinary meanings, with the contextual meaning first.';
+      const parsed = await deepSeek(prompt, { selectedText: result.text, nearbyContext: context }, apiKey);
+      if (current !== serial) return;
+      if (sentence) {
+        if (parsed.translationZh) result.translationZh = parsed.translationZh;
+        const segments = (parsed.segments || []).map(normalize).filter((part) => part && result.text.toLowerCase().includes(part.toLowerCase()));
+        if (segments.length > 1 && segments.length <= 4) result.segments = segments;
+        result.collocations = (parsed.collocations || []).filter((item) => item.phrase && item.meaningZh && result.text.toLowerCase().includes(item.phrase.toLowerCase()));
+      } else if (parsed.meanings?.length) {
+        result.meanings = parsed.meanings.slice(0, result.entryType === "phrase" ? 1 : 2);
+        result.chineseDefinition = result.meanings[0].definitionZh;
+      }
+      await saveResult(result);
+      if (result.kind === "sentence") await syncCollocations(result);
+      renderResult(result);
+    } catch (_error) {}
+  }
+
+  function deepSeek(system, payload, apiKey) {
+    return new Promise((resolve, reject) => GM_xmlhttpRequest({
+      method: "POST", url: "https://api.deepseek.com/chat/completions", timeout: 30000,
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      data: JSON.stringify({ model: "deepseek-v4-flash", thinking: { type: "disabled" }, max_tokens: 600, response_format: { type: "json_object" }, messages: [{ role: "system", content: system }, { role: "user", content: JSON.stringify(payload) }] }),
+      onload(response) { try { if (response.status !== 200) throw new Error(String(response.status)); resolve(JSON.parse(JSON.parse(response.responseText).choices[0].message.content)); } catch (error) { reject(error); } },
+      ontimeout() { reject(new Error("timeout")); }, onerror() { reject(new Error("network")); }
+    }));
   }
 
   function googleTranslate(text, sourceLanguage, targetLanguage) {
@@ -179,6 +229,33 @@
     return text.split(" ").length >= 7 || /[.!?]["'\u201d\u2019)]?$/.test(text) ? "sentence" : "vocabulary";
   }
 
+  function getWordWindow(range) {
+    try {
+      const before = document.createRange(); before.selectNodeContents(document.body); before.setEnd(range.startContainer, range.startOffset);
+      const after = document.createRange(); after.selectNodeContents(document.body); after.setStart(range.endContainer, range.endOffset);
+      const words = (value) => value.match(/[A-Za-z]+(?:['’-][A-Za-z]+)*/g) || [];
+      return {
+        before: words(before.toString().split(/[.!?]/).pop() || "").slice(-3),
+        after: words(after.toString().split(/[.!?]/)[0] || "").slice(0, 3)
+      };
+    } catch (_error) { return { before: [], after: [] }; }
+  }
+
+  async function configureDeepSeek() {
+    const settings = await Promise.resolve(GM_getValue(settingsKey, {}));
+    const value = window.prompt("填写自己的 DeepSeek API Key；留空将关闭增强。Key 只保存在 Stay 本地。", settings.deepseekApiKey || "");
+    if (value === null) return;
+    await Promise.resolve(GM_setValue(settingsKey, { ...settings, deepseekApiKey: value.trim() }));
+    window.alert(value.trim() ? "DeepSeek 增强已开启。" : "DeepSeek 增强已关闭。");
+  }
+
+  async function toggleEnabled() {
+    enabled = !enabled;
+    const settings = await Promise.resolve(GM_getValue(settingsKey, {}));
+    await Promise.resolve(GM_setValue(settingsKey, { ...settings, enabled }));
+    hideCard(); window.alert(`English Reader 已${enabled ? "开启" : "关闭"}。`);
+  }
+
   function detectCollocations(text) {
     const lower = text.toLocaleLowerCase("en-US");
     return collocationRules.filter(([phrase]) => lower.includes(phrase))
@@ -204,6 +281,18 @@
     await Promise.resolve(GM_setValue(storageKey, library));
   }
 
+  async function syncCollocations(sentence) {
+    const library = await readLibrary();
+    library.vocabulary = library.vocabulary.filter((item) => item.sourceSentenceId !== sentence.id);
+    (sentence.collocations || []).filter((item) => item.selected !== false).forEach((item, index) => library.vocabulary.unshift({
+      id: `${sentence.id}:collocation:${index}`, kind: "vocabulary", entryType: "phrase", text: item.phrase,
+      normalizedText: item.phrase.toLowerCase(), chineseDefinition: item.meaningZh, sourceSentenceId: sentence.id,
+      source: sentence.source, createdAt: sentence.createdAt
+    }));
+    library.vocabulary = library.vocabulary.slice(0, maxEntries);
+    await Promise.resolve(GM_setValue(storageKey, library));
+  }
+
   function renderLoading(text) {
     card.classList.remove("hidden");
     card.replaceChildren(header("正在翻译", text), heading(text), paragraph("正在连接 Google 网页翻译…", "muted"),
@@ -214,7 +303,17 @@
     const fragment = document.createDocumentFragment();
     fragment.append(header(result.kind === "sentence" ? "长难句" : result.entryType === "phrase" ? "短语" : "单词", result.text));
     fragment.append(highlightedHeading(result.text, result.collocations || []));
-    fragment.append(paragraph(result.kind === "sentence" ? result.translationZh : result.chineseDefinition));
+    if (result.kind === "vocabulary" && result.meanings?.length) {
+      const meanings = document.createElement("ol");
+      result.meanings.forEach((meaning) => {
+        const item = document.createElement("li");
+        item.textContent = `${partName(meaning.partOfSpeech)} ${meaning.definitionZh}`;
+        meanings.appendChild(item);
+      });
+      fragment.appendChild(meanings);
+    } else {
+      fragment.append(paragraph(result.kind === "sentence" ? result.translationZh : result.chineseDefinition));
+    }
     if (result.kind === "sentence" && result.segments.length > 1) {
       const list = document.createElement("ol");
       result.segments.forEach((segment) => { const item = document.createElement("li"); item.textContent = segment; list.appendChild(item); });
@@ -223,7 +322,12 @@
     if (result.collocations?.length) {
       fragment.append(paragraph("固定搭配", "label"));
       const list = document.createElement("ol");
-      result.collocations.forEach(({ phrase, meaningZh }) => { const item = document.createElement("li"); item.textContent = `${phrase} — ${meaningZh}`; list.appendChild(item); });
+      result.collocations.forEach((collocation) => {
+        const item = document.createElement("li"); const label = document.createElement("label");
+        const check = document.createElement("input"); check.type = "checkbox"; check.checked = collocation.selected !== false;
+        check.onchange = async () => { collocation.selected = check.checked; await saveResult(result); await syncCollocations(result); };
+        label.append(check, document.createTextNode(` ${collocation.phrase} — ${collocation.meaningZh}`)); item.appendChild(label); list.appendChild(item);
+      });
       fragment.appendChild(list);
     }
     fragment.append(paragraph("已保存到 Stay 本地学习库", "saved"), paragraph("翻译来源：Google Web（实验性）", "muted"));
@@ -241,18 +345,29 @@
     const title = document.createElement("h2");
     title.textContent = `学习库（${library.vocabulary.length} 个词语 · ${library.sentences.length} 个句子）`;
     const close = button("关闭", () => libraryPanel.classList.add("hidden"));
-    const exportButton = button("导出 JSON", () => exportLibrary(library));
+    const exportButton = button("JSON", () => exportLibrary(library));
+    const csvButton = button("CSV", () => exportCsv(library));
+    const htmlButton = button("HTML", () => exportHtml(library));
+    const toggle = button("隐藏翻译", () => { libraryPanel.classList.toggle("translations-hidden"); toggle.textContent = libraryPanel.classList.contains("translations-hidden") ? "显示翻译" : "隐藏翻译"; });
+    const selected = new Set();
+    const removeSelected = button("删除选中", async () => { if (!selected.size || !confirm(`删除 ${selected.size} 条记录？`)) return; for (const id of selected) await deleteResult(id); openLibrary(); });
     const headerNode = document.createElement("header");
-    const actions = document.createElement("div"); actions.className = "row"; actions.append(exportButton, close);
+    const actions = document.createElement("div"); actions.className = "row"; actions.append(exportButton, csvButton, htmlButton, toggle, removeSelected, close);
     headerNode.append(title, actions);
-    const fragment = document.createDocumentFragment(); fragment.appendChild(headerNode);
-    [...library.vocabulary, ...library.sentences].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).forEach((item) => {
+    const search = document.createElement("input"); search.type = "search"; search.placeholder = "搜索词语、句子或翻译";
+    const fragment = document.createDocumentFragment(); fragment.append(headerNode, search);
+    const records = [...library.vocabulary, ...library.sentences].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    const list = document.createElement("div"); fragment.appendChild(list);
+    const render = () => { list.replaceChildren(); records.filter((item) => JSON.stringify(item).toLowerCase().includes(search.value.toLowerCase())).forEach((item) => {
       const article = document.createElement("article");
-      const headingNode = document.createElement("h3"); headingNode.textContent = item.text;
-      const detail = paragraph(item.kind === "sentence" ? item.translationZh : item.chineseDefinition);
+      const headingNode = document.createElement("h3");
+      const check = document.createElement("input"); check.type = "checkbox"; check.checked = selected.has(item.id); check.onchange = () => check.checked ? selected.add(item.id) : selected.delete(item.id);
+      headingNode.append(check, document.createTextNode(` ${item.text}`));
+      const detail = paragraph(item.kind === "sentence" ? item.translationZh : item.chineseDefinition, "translation");
       const remove = button("删除", async () => { await deleteResult(item.id); openLibrary(); });
-      article.append(headingNode, detail, remove); fragment.appendChild(article);
-    });
+      article.append(headingNode, detail, remove); list.appendChild(article);
+    }); };
+    search.oninput = render; render();
     libraryPanel.replaceChildren(fragment);
   }
 
@@ -271,6 +386,38 @@
     link.download = `english-reader-stay-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
     document.body.appendChild(link); link.click(); link.remove();
     window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  }
+
+  function importLibrary() {
+    const input = document.createElement("input"); input.type = "file"; input.accept = "application/json,.json";
+    input.onchange = async () => {
+      try {
+        const parsed = JSON.parse(await input.files[0].text());
+        if (!Array.isArray(parsed.vocabulary) || !Array.isArray(parsed.sentences)) throw new Error("格式不正确");
+        await Promise.resolve(GM_setValue(storageKey, { vocabulary: parsed.vocabulary.slice(0, maxEntries), sentences: parsed.sentences.slice(0, maxEntries) }));
+        window.alert("学习库导入完成。");
+      } catch (error) { window.alert(`导入失败：${error.message}`); }
+    };
+    input.click();
+  }
+
+  async function exportCsv(existingLibrary) {
+    const library = existingLibrary || await readLibrary();
+    const rows = [["type", "text", "translation"]];
+    [...library.vocabulary, ...library.sentences].forEach((item) => rows.push([item.kind, item.text, item.kind === "sentence" ? item.translationZh : item.chineseDefinition]));
+    download(rows.map((row) => row.map((value) => `"${String(value || "").replace(/"/g, '""')}"`).join(",")).join("\n"), "csv", "text/csv;charset=utf-8");
+  }
+
+  async function exportHtml(existingLibrary) {
+    const library = existingLibrary || await readLibrary();
+    const escape = (value) => String(value || "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+    const cards = [...library.vocabulary, ...library.sentences].map((item) => `<article><h2>${escape(item.text)}</h2><p class="translation">${escape(item.kind === "sentence" ? item.translationZh : item.chineseDefinition)}</p></article>`).join("");
+    download(`<!doctype html><meta charset="utf-8"><title>English Reader 学习库</title><style>body{max-width:800px;margin:auto;padding:20px;font-family:sans-serif;background:#f6f2e8}article{background:white;padding:14px;margin:10px;border-radius:12px}.hidden .translation{display:none}</style><button onclick="document.body.classList.toggle('hidden')">显示/隐藏翻译</button>${cards}`, "html", "text/html;charset=utf-8");
+  }
+
+  function download(content, extension, type) {
+    const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([content], { type })); link.download = `english-reader-stay-${Date.now()}.${extension}`;
+    document.body.appendChild(link); link.click(); link.remove(); window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   }
 
   function header(label, speechText) {
@@ -317,6 +464,7 @@
 
   function hideCard() { serial += 1; card.classList.add("hidden"); }
   function normalize(text) { return String(text || "").replace(/\s+/g, " ").trim(); }
+  function partName(value) { return ({ phrase: "短语", noun: "名词", verb: "动词", adjective: "形容词", adverb: "副词" })[value] || value || ""; }
   function escapeRegExp(text) { return text.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&"); }
   function heading(text) { const node = document.createElement("h2"); node.textContent = text; return node; }
   function paragraph(text, className = "") { const node = document.createElement("p"); node.className = className; node.textContent = text; return node; }
