@@ -21,7 +21,7 @@ Chrome 138 or later is recommended. The first translation for a language may dow
 
 The iPhone/iPad Safari edition is the standalone userscript [`platforms/stay/english-reader.user.js`](platforms/stay/english-reader.user.js). It currently supports English-to-Chinese reading and stores its learning library locally in Stay without an account or cross-device sync.
 
-Tap the green **戳** floating button to:
+Tap the green **P** floating button to:
 
 - enable or disable selection handling;
 - choose **Google** or **DeepSeek** translation mode;
@@ -75,7 +75,7 @@ Poke Poke（戳戳）是一款网页阅读学习工具，让用户无需离开�
 
 iPhone/iPad Safari 版是独立用户脚本 [`platforms/stay/english-reader.user.js`](platforms/stay/english-reader.user.js)。目前专注英语到中文，学习库仅保存在 Stay 本地，不需要账户，也不做跨设备同步。
 
-点击绿色 **戳** 悬浮球可以：
+点击绿色 **P** 悬浮球可以：
 
 - 通过开关启用或停用网页划词；
 - 选择 **Google** 或 **DeepSeek** 翻译模式；
