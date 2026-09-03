@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         English Reader for Stay
-// @namespace    https://github.com/ShangqiJIN/english-reader
-// @version      0.3.7
+// @name         Poke Poke for Stay
+// @namespace    https://github.com/ShangqiJIN/poke-poke
+// @version      0.3.8
 // @description  Select English text in Safari to translate, listen, and save it locally.
 // @author       ShangqiJIN
 // @match        http://*/*
@@ -68,7 +68,7 @@
   const controls = document.createElement("section");
   controls.className = "controls hidden";
   const fab = document.createElement("button");
-  fab.className = "fab"; fab.type = "button"; fab.textContent = "ER"; fab.setAttribute("aria-label", "English Reader 菜单");
+  fab.className = "fab"; fab.type = "button"; fab.textContent = "戳"; fab.setAttribute("aria-label", "Poke Poke 菜单");
   shadow.append(style, card, libraryPanel, controls, fab);
   document.documentElement.appendChild(host);
 
@@ -95,11 +95,11 @@
   });
 
   if (typeof GM_registerMenuCommand === "function") {
-    GM_registerMenuCommand("English Reader：打开学习库", openLibrary);
-    GM_registerMenuCommand("English Reader：导出 JSON", exportLibrary);
-    GM_registerMenuCommand("English Reader：导入 JSON", importLibrary);
-    GM_registerMenuCommand("English Reader：设置 DeepSeek", configureDeepSeek);
-    GM_registerMenuCommand("English Reader：开关", toggleEnabled);
+    GM_registerMenuCommand("Poke Poke：打开学习库", openLibrary);
+    GM_registerMenuCommand("Poke Poke：导出 JSON", exportLibrary);
+    GM_registerMenuCommand("Poke Poke：导入 JSON", importLibrary);
+    GM_registerMenuCommand("Poke Poke：设置 DeepSeek", configureDeepSeek);
+    GM_registerMenuCommand("Poke Poke：开关", toggleEnabled);
   }
 
   function schedule(delay) {
@@ -325,9 +325,9 @@
     const settings = await Promise.resolve(GM_getValue(settingsKey, {}));
     const provider = settings.translationProvider || (settings.deepseekApiKey ? "deepseek" : "google");
     const title = document.createElement("label"); title.className = "controls-title";
-    const titleText = document.createElement("span"); titleText.textContent = "English Reader";
+    const titleText = document.createElement("span"); titleText.textContent = "Poke Poke";
     const enabledSwitch = document.createElement("input"); enabledSwitch.type = "checkbox"; enabledSwitch.checked = enabled;
-    enabledSwitch.setAttribute("role", "switch"); enabledSwitch.setAttribute("aria-label", "开启 English Reader");
+    enabledSwitch.setAttribute("role", "switch"); enabledSwitch.setAttribute("aria-label", "开启 Poke Poke");
     enabledSwitch.addEventListener("change", toggleEnabled); title.append(titleText, enabledSwitch);
     const row = document.createElement("div"); row.className = "row";
     const providerSelect = document.createElement("select"); providerSelect.setAttribute("aria-label", "翻译模式");
@@ -474,7 +474,7 @@
     const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), ...library }, null, 2)], { type: "application/json" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `english-reader-stay-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+    link.download = `poke-poke-stay-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
     document.body.appendChild(link); link.click(); link.remove();
     window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   }
@@ -503,11 +503,11 @@
     const library = existingLibrary || await readLibrary();
     const escape = (value) => String(value || "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
     const cards = [...library.vocabulary, ...library.sentences].map((item) => `<article><h2>${escape(item.text)}</h2><p class="translation">${escape(item.kind === "sentence" ? item.translationZh : item.chineseDefinition)}</p></article>`).join("");
-    download(`<!doctype html><meta charset="utf-8"><title>English Reader 学习库</title><style>body{max-width:800px;margin:auto;padding:20px;font-family:sans-serif;background:#f6f2e8}article{background:white;padding:14px;margin:10px;border-radius:12px}.hidden .translation{display:none}</style><button onclick="document.body.classList.toggle('hidden')">显示/隐藏翻译</button>${cards}`, "html", "text/html;charset=utf-8");
+    download(`<!doctype html><meta charset="utf-8"><title>Poke Poke 学习库</title><style>body{max-width:800px;margin:auto;padding:20px;font-family:sans-serif;background:#f6f2e8}article{background:white;padding:14px;margin:10px;border-radius:12px}.hidden .translation{display:none}</style><button onclick="document.body.classList.toggle('hidden')">显示/隐藏翻译</button>${cards}`, "html", "text/html;charset=utf-8");
   }
 
   function download(content, extension, type) {
-    const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([content], { type })); link.download = `english-reader-stay-${Date.now()}.${extension}`;
+    const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([content], { type })); link.download = `poke-poke-stay-${Date.now()}.${extension}`;
     document.body.appendChild(link); link.click(); link.remove(); window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   }
 
