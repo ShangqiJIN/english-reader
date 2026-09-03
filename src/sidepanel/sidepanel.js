@@ -49,7 +49,7 @@ document.querySelector("#export-csv").addEventListener("click", () => {
 });
 
 document.querySelector("#export-html").addEventListener("click", () => {
-  const title = activeTab === "sentences" ? "English Reader 句子库" : "English Reader 生词库";
+  const title = activeTab === "sentences" ? "Poke Poke 句子库" : "Poke Poke 生词库";
   const items = exportItems();
   downloadText(createHtml(items, title), exportFilename("html"), "text/html;charset=utf-8");
   setNotice(`已导出 ${items.length} 条 HTML 记录。`);
@@ -304,7 +304,7 @@ function downloadText(content, filename, mimeType) {
 
 function exportFilename(extension) {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  return `english-reader-${activeTab}-${stamp}.${extension}`;
+  return `poke-poke-${activeTab}-${stamp}.${extension}`;
 }
 
 function setNotice(message, isError = false) {
