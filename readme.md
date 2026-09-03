@@ -1,10 +1,10 @@
-# English Reader / 英语阅读助手
+# Poke Poke / 戳戳
 
 [English](#english) · [中文](#中文)
 
 ## English
 
-English Reader helps users look up vocabulary, understand sentences, and save useful expressions without leaving the current webpage. This repository contains separate Chrome and Stay/Safari editions.
+Poke Poke helps users look up vocabulary, understand sentences, and save useful expressions without leaving the current webpage. Poke a word. Poke a sentence. Keep reading. This repository contains separate Chrome and Stay/Safari editions.
 
 ### Chrome edition
 
@@ -21,7 +21,7 @@ Chrome 138 or later is recommended. The first translation for a language may dow
 
 The iPhone/iPad Safari edition is the standalone userscript [`platforms/stay/english-reader.user.js`](platforms/stay/english-reader.user.js). It currently supports English-to-Chinese reading and stores its learning library locally in Stay without an account or cross-device sync.
 
-Tap the green **ER** floating button to:
+Tap the green **戳** floating button to:
 
 - enable or disable selection handling;
 - choose **Google** or **DeepSeek** translation mode;
@@ -58,7 +58,7 @@ All repository paths and filenames remain lowercase for compatibility with the c
 
 ## 中文
 
-English Reader 是一款网页阅读学习工具，让用户无需离开当前页面即可查词、理解句子并积累词汇和固定搭配。本仓库分别维护 Chrome 版和 Stay/Safari 版。
+Poke Poke（戳戳）是一款网页阅读学习工具，让用户无需离开当前页面即可查词、理解句子并积累词汇和固定搭配。戳词，戳句，继续读。本仓库分别维护 Chrome 版和 Stay/Safari 版。
 
 ### Chrome 版
 
@@ -75,7 +75,7 @@ English Reader 是一款网页阅读学习工具，让用户无需离开当前�
 
 iPhone/iPad Safari 版是独立用户脚本 [`platforms/stay/english-reader.user.js`](platforms/stay/english-reader.user.js)。目前专注英语到中文，学习库仅保存在 Stay 本地，不需要账户，也不做跨设备同步。
 
-点击绿色 **ER** 悬浮球可以：
+点击绿色 **戳** 悬浮球可以：
 
 - 通过开关启用或停用网页划词；
 - 选择 **Google** 或 **DeepSeek** 翻译模式；

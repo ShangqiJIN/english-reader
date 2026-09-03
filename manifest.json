@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "English Reader",
+  "name": "Poke Poke",
   "version": "0.7.15",
   "description": "Detect and learn words and difficult sentences in multiple languages while reading webpages.",
   "permissions": ["storage", "sidePanel", "contextMenus", "activeTab"],
@@ -10,7 +10,7 @@
     "type": "module"
   },
   "action": {
-    "default_title": "English Reader",
+    "default_title": "Poke Poke",
     "default_popup": "src/popup/popup.html"
   },
   "side_panel": {
