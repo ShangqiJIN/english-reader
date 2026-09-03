@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         English Reader for Stay
 // @namespace    https://github.com/ShangqiJIN/english-reader
-// @version      0.2.0
+// @version      0.2.1
 // @description  Select English text in Safari to translate, listen, and save it locally.
 // @author       ShangqiJIN
 // @match        http://*/*
@@ -11,6 +11,7 @@
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
 // @connect      translate.googleapis.com
+// @connect      translate.google.com
 // @connect      api.deepseek.com
 // @run-at       document-idle
 // @license      MIT
@@ -41,22 +42,22 @@
   const style = document.createElement("style");
   style.textContent = `
     :host { all: initial; }
-    .card { position: fixed; z-index: 2147483647; left: 12px; right: 12px; bottom: max(14px, env(safe-area-inset-bottom));
-      max-height: min(62vh, 520px); overflow: auto; box-sizing: border-box; padding: 17px;
-      border: 1px solid #d7d4ca; border-radius: 18px; background: #fffdf7; color: #24221d;
-      box-shadow: 0 12px 42px rgba(37,31,19,.25); font: 16px/1.55 -apple-system, BlinkMacSystemFont, sans-serif; }
+    .card { position: fixed; z-index: 2147483647; left: 10px; right: 10px; bottom: max(10px, env(safe-area-inset-bottom));
+      max-height: min(52vh, 420px); overflow: auto; box-sizing: border-box; padding: 12px;
+      border: 1px solid #d7d4ca; border-radius: 14px; background: #fffdf7; color: #24221d;
+      box-shadow: 0 10px 32px rgba(37,31,19,.22); font: 13px/1.45 -apple-system, BlinkMacSystemFont, sans-serif; }
     .hidden { display: none; } .top { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
-    .actions { display:flex; gap:8px; } .label { color:#796e5b; font-size:13px; font-weight:700; letter-spacing:.08em; }
-    h2 { margin:7px 0 10px; font-size:24px; line-height:1.3; overflow-wrap:anywhere; }
+    .actions { display:flex; gap:5px; } .label { color:#796e5b; font-size:11px; font-weight:700; letter-spacing:.06em; }
+    h2 { margin:5px 0 7px; font-size:18px; line-height:1.3; overflow-wrap:anywhere; }
     h2 strong { color:#17634d; text-decoration:underline; text-decoration-color:#a8cdbc; text-underline-offset:3px; }
-    p { margin:8px 0; } ol { margin:8px 0; padding-left:24px; }
-    button { min-width:42px; min-height:38px; border:0; border-radius:12px; padding:7px 10px; background:#ebe5d7; color:#24221d; font-size:18px; }
-    .speaker { width:22px; height:22px; display:block; fill:#5d5a53; } .muted { color:#716a5e; font-size:13px; }
-    .saved { color:#347453; font-size:13px; font-weight:700; } .error { color:#8d3b32; }
-    .library { position:fixed; z-index:2147483647; inset:0; overflow:auto; box-sizing:border-box; padding:20px 14px max(30px,env(safe-area-inset-bottom)); background:#f6f2e8; color:#24221d; font:15px/1.5 -apple-system,BlinkMacSystemFont,sans-serif; }
+    p { margin:5px 0; } ol { margin:6px 0; padding-left:21px; }
+    button { min-width:34px; min-height:31px; border:0; border-radius:9px; padding:5px 8px; background:#ebe5d7; color:#24221d; font-size:14px; }
+    .speaker { width:18px; height:18px; display:block; fill:#5d5a53; } .muted { color:#716a5e; font-size:11px; }
+    .saved { color:#347453; font-size:11px; font-weight:700; } .error { color:#8d3b32; }
+    .library { position:fixed; z-index:2147483647; inset:0; overflow:auto; box-sizing:border-box; padding:12px 10px max(24px,env(safe-area-inset-bottom)); background:#f6f2e8; color:#24221d; font:13px/1.45 -apple-system,BlinkMacSystemFont,sans-serif; }
     .library header { display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; background:#f6f2e8; padding:8px 0; }
-    .library article { background:#fffdf7; border:1px solid #ddd6c7; border-radius:14px; margin:10px 0; padding:13px; }
-    .library article h3 { margin:0 0 5px; font-size:17px; } .library .row { display:flex; gap:8px; flex-wrap:wrap; }
+    .library article { background:#fffdf7; border:1px solid #ddd6c7; border-radius:11px; margin:7px 0; padding:10px; }
+    .library article h3 { margin:0 0 4px; font-size:14px; } .library .row { display:flex; gap:5px; flex-wrap:wrap; }
     .library input[type="search"] { width:100%; padding:10px; border:1px solid #ccc3b4; border-radius:10px; font-size:16px; }
     .translations-hidden .translation { display:none; }
   `;
@@ -170,14 +171,17 @@
   }
 
   function googleTranslate(text, sourceLanguage, targetLanguage) {
-    const url = "https://translate.googleapis.com/translate_a/single?client=gtx&dt=t"
-      + `&sl=${encodeURIComponent(sourceLanguage)}&tl=${encodeURIComponent(targetLanguage)}`
-      + `&q=${encodeURIComponent(text)}`;
+    const query = `/translate_a/single?client=gtx&dt=t&sl=${encodeURIComponent(sourceLanguage)}&tl=${encodeURIComponent(targetLanguage)}&q=${encodeURIComponent(text)}`;
+    return googleRequest(`https://translate.google.com${query}`)
+      .catch(() => googleRequest(`https://translate.googleapis.com${query}`));
+  }
+
+  function googleRequest(url) {
     return new Promise((resolve, reject) => {
       GM_xmlhttpRequest({
         method: "GET",
         url,
-        timeout: 12000,
+        timeout: 7000,
         headers: { Accept: "application/json" },
         onload(response) {
           if (response.status < 200 || response.status >= 300) {
