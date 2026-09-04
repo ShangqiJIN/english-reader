@@ -1,16 +1,18 @@
-body { width: 260px; margin: 0; padding: 18px; background: #fffdf7; color: #27241f; font: 14px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; }
-h1 { margin: 0 0 8px; color: #173f35; font: 700 22px/1.2 Georgia, serif; }
+* { box-sizing: border-box; }
+body { width: 300px; margin: 0; padding: 14px; overflow: hidden; background: #fffdf7; color: #27241f; font: 14px/1.4 -apple-system, BlinkMacSystemFont, sans-serif; }
+h1 { margin: 0 0 6px; color: #173f35; font: 700 22px/1.2 Georgia, serif; }
 h1 small { color: #716a5e; font: 500 11px/1.2 -apple-system, BlinkMacSystemFont, sans-serif; }
-p { margin: 8px 0 14px; }
-.master-switch { display: flex; align-items: center; justify-content: space-between; margin: 10px 0; padding: 9px 10px; border-radius: 8px; background: #eee8da; font-weight: 700; }
+p { margin: 6px 0 10px; }
+.master-switch { display: flex; align-items: center; justify-content: space-between; margin: 7px 0; padding: 8px 10px; border-radius: 8px; background: #eee8da; font-weight: 700; }
 .master-switch input { width: 18px; height: 18px; accent-color: #173f35; }
-.connection { padding: 8px 10px; border-radius: 8px; background: #eee8da; font-size: 12px; }
+.connection { padding: 7px 9px; border-radius: 8px; background: #eee8da; font-size: 12px; }
 .connection.ok { background: #dcecdf; color: #285d3d; }
 .connection.error { background: #f3ded8; color: #8b362a; }
 button { width: 100%; border: 0; border-radius: 9px; padding: 10px; background: #173f35; color: white; cursor: pointer; }
-.provider { margin: 10px 0 14px; padding: 10px; border: 1px solid #ddd5c6; border-radius: 10px; background: #f8f4ea; }
+.provider { margin: 8px 0 10px; padding: 9px; border: 1px solid #ddd5c6; border-radius: 10px; background: #f8f4ea; }
 .provider label { display: block; margin: 0 0 5px; font-size: 12px; font-weight: 700; }
-.provider select, .provider input { width: 100%; margin: 0 0 8px; border: 1px solid #cec5b4; border-radius: 7px; padding: 8px; background: white; color: #27241f; }
+.provider select, .provider input { width: 100%; margin: 0 0 7px; border: 1px solid #cec5b4; border-radius: 7px; padding: 8px; background: white; color: #27241f; }
 .provider .hint { margin: 0 0 8px; color: #716a5e; font-size: 10px; }
 .provider .secondary { padding: 8px; background: #e4ded0; color: #27241f; }
-#status { margin-bottom: 0; color: #9b3b2f; font-size: 12px; }
+#status { margin: 7px 1px 0; color: #9b3b2f; font-size: 11px; line-height: 1.35; }
+#status:empty { display: none; }
