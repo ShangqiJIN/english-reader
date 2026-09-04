@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Poke Poke for Stay
 // @namespace    https://github.com/ShangqiJIN/poke-poke
-// @version      0.3.9
+// @version      0.4.5
 // @description  Select English text in Safari to translate, listen, and save it locally.
 // @author       ShangqiJIN
 // @match        http://*/*
@@ -46,9 +46,17 @@
     .speaker { width:16px; height:16px; display:block; fill:#5d5a53; } .muted { color:#716a5e; font-size:10px; }
     .saved { color:#347453; font-size:10px; font-weight:700; } .error { color:#8d3b32; }
     .library { position:fixed; z-index:2147483647; inset:0; overflow:auto; box-sizing:border-box; padding:10px 8px max(20px,env(safe-area-inset-bottom)); background:#f6f2e8; color:#24221d; font:12px/1.4 -apple-system,BlinkMacSystemFont,sans-serif; }
-    .library header { display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; background:#f6f2e8; padding:8px 0; }
+    .library header { display:flex; align-items:center; justify-content:space-between; padding:8px 0; }
+    .library-sticky { position:sticky; z-index:2; top:0; padding:0 0 2px; background:#f6f2e8; box-shadow:0 5px 9px rgba(37,31,19,.06); }
     .library article { background:#fffdf7; border:1px solid #ddd6c7; border-radius:11px; margin:7px 0; padding:10px; }
-    .library article h3 { margin:0 0 4px; font-size:13px; } .library .row { display:flex; gap:5px; flex-wrap:wrap; }
+    .library article h3 { flex:1; margin:0; font-size:13px; overflow-wrap:anywhere; } .library .row { display:flex; gap:5px; flex-wrap:wrap; }
+    .library-item-head { display:flex; align-items:flex-start; gap:5px; margin-bottom:4px; }
+    .library-item-head input { flex:0 0 auto; margin-top:3px; }
+    .library-meanings { margin:5px 0; }
+    .library-meanings p { margin:3px 0; color:#24221d; }
+    .library-part { color:#17634d; font-weight:800; }
+    .library-meta { color:#716a5e; font-size:10px; overflow-wrap:anywhere; }
+    .library-meta a { color:#17634d; text-decoration:underline; text-underline-offset:2px; }
     .library input[type="search"] { width:100%; padding:10px; border:1px solid #ccc3b4; border-radius:10px; font-size:16px; }
     .library-bar { display:flex; align-items:center; gap:5px; margin:7px 0; }
     .library-bar input[type="search"] { flex:1; min-width:0; padding:7px; font-size:13px; }
@@ -134,9 +142,10 @@
     }
     renderLoading(text, "Google");
     try {
-      const translation = await googleTranslate(text, "en", "zh-CN");
+      const lookup = await googleTranslate(text, "en", "zh-CN");
       if (current !== serial) return;
-      const result = createResult(text, translation);
+      const result = createResult(text, lookup.translation);
+      if (result.kind === "vocabulary") result.partsOfSpeech = lookup.partsOfSpeech;
       result.wordWindow = wordWindow;
       result.providerWarning = providerWarning;
       await saveResult(result);
@@ -156,7 +165,7 @@
         ? 'Return JSON {"translationZh":"中文翻译","segments":["verbatim English clause"],"collocations":[{"phrase":"verbatim fixed expression","meaningZh":"中文含义"}]}. Use 2–4 complete clauses; do not split lists or short phrases. Include only established expressions present verbatim in the sentence.'
         : result.entryType === "phrase"
           ? 'Return JSON {"meanings":[{"partOfSpeech":"phrase","definitionZh":"完整短语在上下文中的中文含义"}]}. Explain the complete phrase, not individual words.'
-          : 'Return JSON {"meanings":[{"partOfSpeech":"词性","definitionZh":"语境中最贴切的中文义"}]}. Return at most two distinct ordinary meanings, with the contextual meaning first.';
+          : 'Return JSON {"meanings":[{"partOfSpeech":"noun|verb|adjective|adverb|other","definitionZh":"简洁中文词义","explanationZh":"可选的极短语境说明"}]}. Return the contextual meaning first. Usually return one meaning; add a second only when it is genuinely distinct and useful. Keep definitionZh to a dictionary-style word or short phrase. Keep explanationZh under 12 Chinese characters and omit it when unnecessary.';
       const parsed = await deepSeek(prompt, { selectedText: result.text, nearbyContext: context }, apiKey);
       if (current !== serial) return;
       if (sentence) {
@@ -196,7 +205,7 @@
   }
 
   function googleTranslate(text, sourceLanguage, targetLanguage) {
-    const query = `/translate_a/single?client=gtx&dt=t&sl=${encodeURIComponent(sourceLanguage)}&tl=${encodeURIComponent(targetLanguage)}&q=${encodeURIComponent(text)}`;
+    const query = `/translate_a/single?client=gtx&dt=t&dt=bd&sl=${encodeURIComponent(sourceLanguage)}&tl=${encodeURIComponent(targetLanguage)}&q=${encodeURIComponent(text)}`;
     return googleRequest(`https://translate.google.com${query}`)
       .catch(() => googleRequest(`https://translate.googleapis.com${query}`));
   }
@@ -219,7 +228,10 @@
               ? payload[0].map((part) => part?.[0] || "").join("")
               : "";
             if (!translated) throw new Error("翻译结果为空。");
-            resolve(translated);
+            const partsOfSpeech = Array.isArray(payload?.[1])
+              ? [...new Set(payload[1].map((entry) => normalizePartOfSpeech(entry?.[0])).filter(Boolean))]
+              : [];
+            resolve({ translation: translated, partsOfSpeech });
           } catch (error) {
             reject(new Error(error?.message || "无法读取 Google 翻译结果。"));
           }
@@ -389,15 +401,17 @@
     const displayText = result.kind === "sentence" && result.segments.length > 1 ? result.segments.join(" / ") : result.text;
     fragment.append(highlightedHeading(displayText, result.collocations || []));
     if (result.kind === "vocabulary" && result.meanings?.length) {
-      const meanings = document.createElement("ol");
+      const meanings = document.createElement("div");
       result.meanings.forEach((meaning) => {
-        const item = document.createElement("li");
-        item.textContent = `${partName(meaning.partOfSpeech)} ${meaning.definitionZh}`;
+        const item = document.createElement("p");
+        item.textContent = `${partAbbreviation(meaning.partOfSpeech)} ${meaning.definitionZh}${meaning.explanationZh ? ` — ${meaning.explanationZh}` : ""}`;
         meanings.appendChild(item);
       });
       fragment.appendChild(meanings);
     } else {
-      fragment.append(paragraph(result.kind === "sentence" ? result.translationZh : result.chineseDefinition));
+      const part = result.kind === "vocabulary" ? partAbbreviation(result.partsOfSpeech?.[0]) : "";
+      const definition = result.kind === "sentence" ? result.translationZh : result.chineseDefinition;
+      fragment.append(paragraph([part, definition].filter(Boolean).join(" ")));
     }
     if (result.collocations?.length) {
       fragment.append(paragraph("固定搭配", "label"));
@@ -448,15 +462,42 @@
     const htmlButton = button("HTML", () => exportHtml(exportScope()));
     const removeSelected = button("删除", async () => { if (!selected.size || !confirm(`删除 ${selected.size} 条记录？`)) return; for (const id of selected) await deleteResult(id); openLibrary(); });
     actions.append(selectAll, csvButton, htmlButton, removeSelected);
-    const fragment = document.createDocumentFragment(); fragment.append(headerNode, tabs, searchRow, actions);
+    const sticky = document.createElement("div"); sticky.className = "library-sticky"; sticky.append(headerNode, tabs, searchRow, actions);
+    const fragment = document.createDocumentFragment(); fragment.append(sticky);
     const list = document.createElement("div"); fragment.appendChild(list);
     const render = () => { list.replaceChildren(); wordTab.classList.toggle("active", activeKind === "vocabulary"); sentenceTab.classList.toggle("active", activeKind === "sentences"); visible().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).forEach((item) => {
       const article = document.createElement("article");
       const headingNode = document.createElement("h3");
       const check = document.createElement("input"); check.type = "checkbox"; check.checked = selected.has(item.id); check.onchange = () => check.checked ? selected.add(item.id) : selected.delete(item.id);
-      headingNode.append(check, document.createTextNode(` ${item.text}`));
-      const detail = paragraph(item.kind === "sentence" ? item.translationZh : item.chineseDefinition, "translation");
-      article.append(headingNode, detail); list.appendChild(article);
+      headingNode.textContent = item.text;
+      const itemHead = document.createElement("div"); itemHead.className = "library-item-head";
+      itemHead.append(check, headingNode, button("朗读", () => speak(item.text), true));
+      article.appendChild(itemHead);
+      if (item.kind === "vocabulary" && item.meanings?.length) {
+        const meanings = document.createElement("div"); meanings.className = "library-meanings translation";
+        item.meanings.forEach((meaning) => {
+          const row = document.createElement("p"); appendLibraryDefinition(row, meaning.partOfSpeech, meaning.definitionZh); meanings.appendChild(row);
+        });
+        article.appendChild(meanings);
+      } else {
+        const preferredPart = item.partsOfSpeech?.[0];
+        const definition = item.kind === "sentence" ? item.translationZh : item.chineseDefinition;
+        const detail = paragraph("", "translation");
+        if (item.kind === "vocabulary") appendLibraryDefinition(detail, preferredPart, definition); else detail.textContent = definition;
+        article.appendChild(detail);
+      }
+      if (item.source?.pageTitle || item.source?.pageUrl) {
+        const meta = paragraph("", "library-meta");
+        const pageUrl = /^https?:\/\//.test(item.source?.pageUrl || "") ? item.source.pageUrl : "";
+        if (pageUrl) {
+          const source = document.createElement("a"); source.href = pageUrl; source.target = "_blank"; source.rel = "noopener noreferrer";
+          source.textContent = sourceLabel(item.source.pageTitle || pageUrl); meta.appendChild(source);
+        } else {
+          meta.textContent = sourceLabel(item.source.pageTitle);
+        }
+        article.appendChild(meta);
+      }
+      list.appendChild(article);
     }); };
     search.oninput = render; render();
     libraryPanel.replaceChildren(fragment);
@@ -555,7 +596,19 @@
 
   function hideCard() { serial += 1; card.classList.add("hidden"); }
   function normalize(text) { return String(text || "").replace(/\s+/g, " ").trim(); }
-  function partName(value) { return ({ phrase: "短语", noun: "名词", verb: "动词", adjective: "形容词", adverb: "副词" })[value] || value || ""; }
+  function normalizePartOfSpeech(value) {
+    const key = String(value || "").toLowerCase();
+    return ({ noun: "noun", verb: "verb", adjective: "adjective", adverb: "adverb", pronoun: "pronoun", preposition: "preposition", conjunction: "conjunction", interjection: "interjection" })[key] || "";
+  }
+  function partAbbreviation(value) { return ({ phrase: "phr.", noun: "n.", verb: "v.", adjective: "adj.", adverb: "adv.", pronoun: "pron.", preposition: "prep.", conjunction: "conj.", interjection: "int." })[value] || ""; }
+  function appendLibraryDefinition(node, part, definition) {
+    const abbreviation = partAbbreviation(part);
+    if (abbreviation) {
+      const label = document.createElement("strong"); label.className = "library-part"; label.textContent = abbreviation;
+      node.append(label, document.createTextNode(` ${definition || ""}`));
+    } else node.textContent = definition || "";
+  }
+  function sourceLabel(value) { return String(value || "").split(/\s[-–—|]\s|-/)[0].trim(); }
   function escapeRegExp(text) { return text.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&"); }
   function heading(text) { const node = document.createElement("h2"); node.textContent = text; return node; }
   function paragraph(text, className = "") { const node = document.createElement("p"); node.className = className; node.textContent = text; return node; }
