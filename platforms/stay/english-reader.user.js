@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Poke Poke for Stay
 // @namespace    https://github.com/ShangqiJIN/poke-poke
-// @version      0.4.5
+// @version      0.4.6
 // @description  Select English text in Safari to translate, listen, and save it locally.
 // @author       ShangqiJIN
 // @match        http://*/*
@@ -84,6 +84,7 @@
   let timer = 0;
   let serial = 0;
   let enabled = true;
+  let lastAnalyzedText = "";
 
   Promise.resolve(GM_getValue(settingsKey, {})).then((settings) => { enabled = settings.enabled !== false; renderControls(); });
   fab.addEventListener("click", () => { controls.classList.toggle("hidden"); if (!controls.classList.contains("hidden")) renderControls(); });
@@ -96,10 +97,16 @@
   }, true);
   document.addEventListener("pointerup", (event) => {
     if (event.composedPath().includes(host)) return;
-    schedule(160);
+    scheduleCurrentSelection();
   }, true);
   document.addEventListener("selectionchange", () => {
-    if (armed) schedule(350);
+    const text = currentSelectionText();
+    if (!text || selectionInsideUi(window.getSelection())) return;
+    if (text !== lastAnalyzedText) {
+      if (!armed) serial += 1;
+      armed = true;
+      schedule(/\s/.test(text) ? 550 : 350);
+    }
   });
 
   if (typeof GM_registerMenuCommand === "function") {
@@ -115,12 +122,21 @@
     timer = window.setTimeout(readSelection, delay);
   }
 
+  function scheduleCurrentSelection() {
+    const text = currentSelectionText();
+    if (!text) return;
+    schedule(/\s/.test(text) ? 550 : 160);
+  }
+
+  function currentSelectionText() { return normalize(window.getSelection()?.toString()); }
+
   function readSelection() {
     if (!armed || !enabled) return;
     const selection = window.getSelection();
-    const text = normalize(selection?.toString());
+    const text = currentSelectionText();
     if (!text || text.length > selectionLimit || selectionInsideUi(selection)) return;
     armed = false;
+    lastAnalyzedText = text;
     analyze(text, getWordWindow(selection.getRangeAt(0)));
   }
 
@@ -377,8 +393,10 @@
 
   async function syncCollocations(sentence) {
     const library = await readLibrary();
-    library.vocabulary = library.vocabulary.filter((item) => item.sourceSentenceId !== sentence.id);
-    (sentence.collocations || []).filter((item) => item.selected !== false).forEach((item, index) => library.vocabulary.unshift({
+    const collocations = (sentence.collocations || []).filter((item) => item.selected !== false);
+    const normalizedPhrases = new Set(collocations.map((item) => item.phrase.toLowerCase()));
+    library.vocabulary = library.vocabulary.filter((item) => item.sourceSentenceId !== sentence.id && !normalizedPhrases.has(item.normalizedText));
+    collocations.forEach((item, index) => library.vocabulary.unshift({
       id: `${sentence.id}:collocation:${index}`, kind: "vocabulary", entryType: "phrase", text: item.phrase,
       normalizedText: item.phrase.toLowerCase(), chineseDefinition: item.meaningZh, sourceSentenceId: sentence.id,
       source: sentence.source, createdAt: sentence.createdAt
