@@ -11,7 +11,7 @@
 
 The card should appear near the bottom of the screen. The first result depends on network access to Google. The selected text is sent to Google Web Translation.
 
-Stay 0.4.5 is intentionally English-to-Chinese only. Tap the green **P** floating button to use the master switch, choose Google or DeepSeek, and open the learning library. The library keeps its controls visible while scrolling, reads saved entries aloud, presents each concise meaning directly from its dark-green part-of-speech label without numbering, and links back to source pages with compact labels. The DeepSeek key control appears only in DeepSeek mode and tests the connection when the key is saved.
+Stay 0.4.6 is intentionally English-to-Chinese only. Tap the green **P** floating button to use the master switch, choose Google or DeepSeek, and open the learning library. Single-word selection stays fast, while expanding a multi-word selection waits for the drag to settle before analysis. DeepSeek sentence collocations are saved and deduplicated in the vocabulary library. The library keeps its controls visible while scrolling, reads saved entries aloud, presents each concise meaning directly from its dark-green part-of-speech label without numbering, and links back to source pages with compact labels. The DeepSeek key control appears only in DeepSeek mode and tests the connection when the key is saved.
 
 ## Learning library
 
